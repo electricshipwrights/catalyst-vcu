@@ -1,0 +1,30 @@
+{
+  "name": "vcu-display",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n bus,web -c blue,magenta \"pnpm bus\" \"vite\"",
+    "bus": "tsx watch server/index.ts",
+    "build": "tsc && vite build",
+    "typecheck": "tsc",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/barlow-semi-condensed": "^5.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2"
+  }
+}
