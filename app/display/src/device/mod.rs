@@ -5,7 +5,8 @@
 //!   VCU_PORT_CAN       port bus (default can0)
 //!   VCU_STBD_CAN       starboard bus (default can1)
 //!   VCU_SETTINGS       settings file (default /etc/vcu/display.conf), lines like
-//!                      `theme=night` and `smoothing=instant`, re-read when changed
+//!                      `theme=night`, `scale=absolute` and `smoothing=instant`,
+//!                      re-read when changed
 //!   VCU_ROTATE         180 (default: the board is mounted upside down, so the
 //!                      A/B/C buttons are above the screen) or 0
 //!   VCU_TOUCH*         see touch.rs
@@ -23,7 +24,10 @@ use std::time::{Duration, SystemTime};
 use slint::platform::software_renderer::{MinimalSoftwareWindow, Rgb565Pixel};
 use slint::{ComponentHandle, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::Smoothing;
-use vcu_display::{Display, Palette, Sides, drive, parse_smoothing, parse_theme, theme_name};
+use vcu_display::{
+    Display, Palette, Prefs, Sides, drive, parse_scale, parse_smoothing, parse_theme, scale_name,
+    theme_name,
+};
 
 use crate::platform::{now_ms, slint_error};
 
@@ -81,6 +85,10 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
                     Some(t) => ui.global::<Palette>().set_theme(t),
                     None => eprintln!("{path}: unknown theme {v:?}"),
                 },
+                Some(("scale", v)) => match parse_scale(v) {
+                    Some(s) => ui.global::<Prefs>().set_scale(s),
+                    None => eprintln!("{path}: unknown scale {v:?}"),
+                },
                 Some(("smoothing", v)) => match parse_smoothing(v) {
                     Some(s) => smoothing.set(s),
                     None => eprintln!("{path}: unknown smoothing {v:?}"),
@@ -132,6 +140,7 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, ui: &Display) -> Result<(), Box<d
     let smoothing = Rc::new(Cell::new(Smoothing::default()));
     let _settings = watch_settings(ui, smoothing.clone());
     ui.on_theme_selected(|theme| save_setting("theme", theme_name(theme)));
+    ui.on_scale_selected(|scale| save_setting("scale", scale_name(scale)));
     let _driver = drive(ui, sides.clone(), smoothing, now_ms);
     let mut port = can::Bus::open(env_or("VCU_PORT_CAN", "can0"));
     let mut stbd = can::Bus::open(env_or("VCU_STBD_CAN", "can1"));

@@ -66,11 +66,11 @@ N2K_ID = (6 << 26) | (PGN_BATTERY_STATUS << 8) | MPPT_SOURCE
 
 # Demo: (solar, propulsion, house, charger) per step, from the bench's presets
 STEPS = [
-    (140, 170, 30, 0),  # cruise
-    (150, 380, 25, 0),  # full throttle
-    (170, 0, 12, 0),    # moored, sun
-    (0, 0, 15, 40),     # shore power
-    (0, 0, 15, 0),      # night
+    (55, 40, 10, 0),    # cruise: 6 knots, about 40 A propulsion per side
+    (55, 320, 10, 0),   # full throttle
+    (60, 0, 10, 0),     # moored, sun
+    (0, 0, 10, 70),     # shore power (the charger tops out at 80 A)
+    (0, 0, 10, 0),      # night
 ]
 STEP_S, RAMP_S = 30, 3
 LOOP_S = STEP_S * len(STEPS)

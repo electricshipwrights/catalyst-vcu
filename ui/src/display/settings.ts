@@ -54,3 +54,11 @@ export const useRenderer = renderer.use
 export const setRenderer = renderer.set
 
 
+
+// Bar scales: relative gives solar its own scale; absolute puts solar on the
+// load scale so the two bars compare directly
+export const SCALES = ['relative', 'absolute'] as const
+export type Scale = (typeof SCALES)[number]
+const scale = createSetting('vcu.scale', SCALES, 'relative')
+export const useScale = scale.use
+export const setScale = scale.set

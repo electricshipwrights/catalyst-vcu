@@ -21,6 +21,7 @@ import {
   encodeOrionPack,
   n2kId,
 } from '../shared/protocol'
+import { VESSEL } from '../shared/vessel'
 
 const OCV_LFP: [number, number][] = [
   [0, 2.5], [5, 3.0], [10, 3.2], [20, 3.25], [30, 3.27], [40, 3.28], [50, 3.29],
@@ -76,7 +77,7 @@ export class BatterySim {
   }
 
   get chargerTarget() {
-    return this.chargerOn ? Math.min(this.params.chargerMaxA, CHARGER_POWER_W / this.packV, this.ccl) : 0
+    return this.chargerOn ? Math.min(VESSEL.chargerMaxA, CHARGER_POWER_W / this.packV, this.ccl) : 0
   }
 
   patch({ soc, ...rest }: SimPatch) {

@@ -18,7 +18,6 @@ export type SimParams = {
   motor: boolean
   charger: boolean
   shore: boolean
-  chargerMaxA: number
 }
 
 export type SimPatch = Partial<SimParams> & { soc?: number }

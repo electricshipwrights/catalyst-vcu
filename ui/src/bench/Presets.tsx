@@ -1,4 +1,5 @@
 import { BUSES, type BusName, type BusStatus, type SimPatch } from '../../shared/bus'
+import { VESSEL } from '../../shared/vessel'
 import { send, useServerStatus } from '../bus'
 
 const both = (patch: SimPatch): Record<BusName, SimPatch> => ({ port: patch, stbd: patch })
@@ -7,15 +8,15 @@ const PRESETS: { label: string; sides: Record<BusName, SimPatch> }[] = [
   {
     label: 'Wireframe',
     sides: {
-      port: { solarA: 142, propulsionA: 170, houseA: 32, shore: false, soc: 64 },
-      stbd: { solarA: 168, propulsionA: 125, houseA: 13, shore: false, soc: 71 },
+      port: { solarA: 52, propulsionA: 70, houseA: 3, shore: false, soc: 64 },
+      stbd: { solarA: 58, propulsionA: 65, houseA: 15, shore: false, soc: 71 },
     },
   },
-  { label: 'Cruise', sides: both({ solarA: 140, propulsionA: 170, houseA: 30, shore: false }) },
-  { label: 'Full throttle', sides: both({ solarA: 150, propulsionA: 380, houseA: 25, shore: false }) },
-  { label: 'Moored, sun', sides: both({ solarA: 170, propulsionA: 0, houseA: 12, shore: false }) },
-  { label: 'Night', sides: both({ solarA: 0, propulsionA: 0, houseA: 15, shore: false }) },
-  { label: 'Shore power', sides: both({ solarA: 0, propulsionA: 0, houseA: 15, shore: true }) },
+  { label: 'Cruise', sides: both({ solarA: 55, propulsionA: VESSEL.cruiseA, houseA: 10, shore: false }) },
+  { label: 'Full throttle', sides: both({ solarA: 55, propulsionA: 320, houseA: 10, shore: false }) },
+  { label: 'Moored, sun', sides: both({ solarA: 60, propulsionA: 0, houseA: 10, shore: false }) },
+  { label: 'Night', sides: both({ solarA: 0, propulsionA: 0, houseA: 10, shore: false }) },
+  { label: 'Shore power', sides: both({ solarA: 0, propulsionA: 0, houseA: 10, shore: true }) },
 ]
 
 function matches(sides: Record<BusName, SimPatch>, buses: BusStatus[] | undefined) {

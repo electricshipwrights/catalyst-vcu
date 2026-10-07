@@ -20,7 +20,8 @@ use vcu_display::slint::platform::{Platform, PointerEventButton, WindowAdapter, 
 use vcu_display::slint::{self, ComponentHandle, LogicalPosition, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::Smoothing;
 use vcu_display::{
-    Display, HEIGHT, Palette, Sides, WIDTH, drive, parse_smoothing, parse_theme, theme_name,
+    Display, HEIGHT, Palette, Prefs, Sides, WIDTH, drive, parse_scale, parse_smoothing,
+    parse_theme, scale_name, theme_name,
 };
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{Clamped, JsCast};
@@ -120,6 +121,14 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
             ui.global::<Palette>().set_theme(t);
         }
         if let Some(s) = storage
+            .get_item("vcu.scale")
+            .ok()
+            .flatten()
+            .and_then(|v| parse_scale(&v))
+        {
+            ui.global::<Prefs>().set_scale(s);
+        }
+        if let Some(s) = storage
             .get_item("vcu.smoothing")
             .ok()
             .flatten()
@@ -134,16 +143,16 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
     timer
 }
 
-/// Saves a theme picked on the settings view where the bench keeps it, and tells
-/// the React side (which only hears other tabs' storage events by itself).
-fn save_theme(theme: i32) {
+/// Saves a setting picked on the settings view where the bench keeps it, and
+/// tells the React side (which only hears other tabs' storage events by itself).
+fn save_setting(key: &str, value: &str) {
     let window = window();
     let Ok(Some(storage)) = window.local_storage() else {
         return;
     };
-    let _ = storage.set_item("vcu.theme", theme_name(theme));
+    let _ = storage.set_item(key, value);
     let init = web_sys::StorageEventInit::new();
-    init.set_key(Some("vcu.theme"));
+    init.set_key(Some(key));
     if let Ok(event) = web_sys::StorageEvent::new_with_event_init_dict("storage", &init) {
         let _ = window.dispatch_event(&event);
     }
@@ -278,7 +287,8 @@ pub fn start(canvas: HtmlCanvasElement) -> Result<(), JsValue> {
     let sides = Rc::new(RefCell::new(Sides::default()));
     let smoothing = Rc::new(Cell::new(Smoothing::default()));
     let settings = watch_settings(&ui, smoothing.clone());
-    ui.on_theme_selected(save_theme);
+    ui.on_theme_selected(|theme| save_setting("vcu.theme", theme_name(theme)));
+    ui.on_scale_selected(|scale| save_setting("vcu.scale", scale_name(scale)));
     let driver = drive(&ui, sides.clone(), smoothing, now_ms);
     connect(sides);
     ui.show().map_err(|e| err(&e))?;

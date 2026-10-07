@@ -38,7 +38,7 @@
   /* Simple palette: one bright and one dim text color, one gray for lines and
      surfaces, and color only in the bars */
   --bg: #000000;
-  --track: #131417;
+  --track: #080808;
   --ink: #f5f5f6;
   --dim: #8a8d94;
   --edge: #3a3d43;
@@ -118,25 +118,25 @@
   color: var(--dim);
 }
 
-/* Settings: large touch targets, the active one filled like the nav */
+/* Settings: groups of large touch targets, the active one filled like the nav */
+.page.settings {
+  padding: 8px 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .settings-label {
-  position: absolute;
-  top: 8px;
-  left: 10px;
+  margin-bottom: 6px;
   color: var(--dim);
 }
 
-.theme-options {
-  position: absolute;
-  top: 28px;
-  left: 10px;
-  right: 10px;
+.options {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
-.theme-options button {
+.options button {
   all: unset;
   box-sizing: border-box;
   height: 44px;
@@ -150,7 +150,7 @@
   cursor: pointer;
 }
 
-.theme-options button.on {
+.options button.on {
   background: var(--track);
   border-color: var(--track);
   color: var(--ink);
@@ -266,7 +266,7 @@
 }
 
 .track {
-  height: 18px;
+  height: 12px;
   background: var(--track);
   overflow: hidden;
 }
@@ -318,26 +318,27 @@
 }
 
 .row-label {
-  left: 136px;
-  width: 48px;
-  height: 18px;
-  padding-top: 2px;
+  left: 134px;
+  width: 52px;
+  height: 12px;
+  line-height: 12px;
   text-align: center;
   color: var(--dim);
 }
 
 .ticks {
-  top: 185px;
+  top: 187px;
   left: 0;
 }
 
 .tick {
   position: absolute;
+  line-height: 100%;
   color: var(--dim);
 }
 
 .footer {
-  top: 209px;
+  top: 213px;
   color: var(--ink);
   display: flex;
   flex-direction: row;

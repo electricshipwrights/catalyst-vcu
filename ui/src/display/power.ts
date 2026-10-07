@@ -2,7 +2,12 @@ import type { Smoothing } from './settings'
 import type { Currents, SideReading } from './useSide'
 
 export const SCALE_MAX_A = 400
-export const CAPACITY_AH = 280
+// Solar gets its own scale: 3.5 kW per side is about 68 A at full sun
+export const SOLAR_SCALE_A = 80
+// Per side: 110 kWh total, so 55 kWh at 51.2 V nominal (the Orion BMS log implies ~1,105 Ah)
+export const CAPACITY_AH = 1100
+// About 100 of the 110 kWh is usable, so "empty" is 9% SOC
+export const RESERVE_PCT = 9
 
 export type PowerView =
   | { online: false }
@@ -31,12 +36,13 @@ function hm(hours: number) {
   return h >= 100 ? '99h+' : `${h}h`
 }
 
+// Time to full, or to empty counting down to the reserve ("reserve" once in it)
 export function eta(soc: number, netA: number, capacityAh = CAPACITY_AH) {
   if (netA > 0 && soc >= 99.5) return 'full'
   if (Math.abs(netA) < 1) return null
-  return netA < 0
-    ? `${hm(((soc / 100) * capacityAh) / -netA)} to empty`
-    : `${hm((((100 - soc) / 100) * capacityAh) / netA)} to full`
+  if (netA > 0) return `${hm((((100 - soc) / 100) * capacityAh) / netA)} to full`
+  const usable = soc - RESERVE_PCT
+  return usable <= 0 ? 'reserve' : `${hm(((usable / 100) * capacityAh) / -netA)} to empty`
 }
 
 function pendingEta(soc: number, netA: number) {

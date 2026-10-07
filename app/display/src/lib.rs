@@ -23,7 +23,7 @@ pub struct Sides {
     pub stbd: Side,
 }
 
-/// Settings shared with the prototype: `vcu.smoothing` and `vcu.theme`.
+/// Settings shared with the prototype: `vcu.smoothing`, `vcu.theme` and `vcu.scale`.
 pub fn parse_smoothing(s: &str) -> Option<Smoothing> {
     match s.trim() {
         "smooth" => Some(Smoothing::Smooth),
@@ -42,6 +42,17 @@ pub fn theme_name(theme: i32) -> &'static str {
     THEMES.get(theme as usize).copied().unwrap_or(THEMES[0])
 }
 
+/// Bar scales: relative gives solar its own scale; absolute puts it on the load scale.
+pub const SCALES: [&str; 2] = ["relative", "absolute"];
+
+pub fn parse_scale(s: &str) -> Option<i32> {
+    SCALES.iter().position(|t| *t == s.trim()).map(|i| i as i32)
+}
+
+pub fn scale_name(scale: i32) -> &'static str {
+    SCALES.get(scale as usize).copied().unwrap_or(SCALES[0])
+}
+
 pub fn side_view(v: Option<PowerView>) -> SideView {
     let Some(v) = v else {
         return SideView::default();
@@ -51,6 +62,7 @@ pub fn side_view(v: Option<PowerView>) -> SideView {
         Eta::Full => (1, String::new(), true),
         Eta::Pending { to_full } => (2, String::new(), to_full),
         Eta::Time { hm, to_full } => (3, hm, to_full),
+        Eta::Reserve => (4, String::new(), false),
     };
     SideView {
         online: true,

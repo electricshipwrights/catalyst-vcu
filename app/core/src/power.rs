@@ -4,7 +4,10 @@ use crate::js_round;
 use crate::side::Reading;
 
 pub const SCALE_MAX_A: f64 = 400.0;
-pub const CAPACITY_AH: f64 = 280.0;
+/// Per side: 110 kWh total, so 55 kWh at 51.2 V nominal (the Orion BMS log implies ~1,105 Ah).
+pub const CAPACITY_AH: f64 = 1100.0;
+/// About 100 of the 110 kWh is usable, so "empty" is 9% SOC.
+pub const RESERVE_PCT: f64 = 9.0;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Smoothing {
@@ -18,6 +21,8 @@ pub enum Eta {
     /// Not shown: net current is under 1 A.
     None,
     Full,
+    /// Discharging with only the reserve left.
+    Reserve,
     /// Net current just changed and hasn't settled yet.
     Pending {
         to_full: bool,
@@ -35,6 +40,7 @@ impl Eta {
         match self {
             Eta::None => None,
             Eta::Full => Some("full".into()),
+            Eta::Reserve => Some("reserve".into()),
             Eta::Pending { to_full } => Some(format!("-- to {}", to(*to_full))),
             Eta::Time { hm, to_full } => Some(format!("{hm} to {}", to(*to_full))),
         }
@@ -70,6 +76,7 @@ fn hm(hours: f64) -> String {
     }
 }
 
+/// Time to full, or to empty counting down to the reserve (`Eta::Reserve` once in it).
 pub fn eta(soc: f64, net_a: f64, capacity_ah: f64) -> Eta {
     if net_a > 0.0 && soc >= 99.5 {
         return Eta::Full;
@@ -77,15 +84,19 @@ pub fn eta(soc: f64, net_a: f64, capacity_ah: f64) -> Eta {
     if net_a.abs() < 1.0 {
         return Eta::None;
     }
-    let to_full = net_a > 0.0;
-    let hours = if to_full {
-        (100.0 - soc) / 100.0 * capacity_ah / net_a
-    } else {
-        soc / 100.0 * capacity_ah / -net_a
-    };
+    if net_a > 0.0 {
+        return Eta::Time {
+            hm: hm((100.0 - soc) / 100.0 * capacity_ah / net_a),
+            to_full: true,
+        };
+    }
+    let usable = soc - RESERVE_PCT;
+    if usable <= 0.0 {
+        return Eta::Reserve;
+    }
     Eta::Time {
-        hm: hm(hours),
-        to_full,
+        hm: hm(usable / 100.0 * capacity_ah / -net_a),
+        to_full: false,
     }
 }
 
@@ -151,7 +162,11 @@ mod tests {
         assert_eq!(hm(99.4), "99h");
         assert_eq!(hm(99.5), "99h+");
         assert_eq!(hm(150.0), "99h+");
-        assert_eq!(eta(50.0, -140.0, 280.0).text().unwrap(), "1:00 to empty");
+        // Empty is the 9% reserve: 41% of 280 Ah at 140 A is 0.82 h
+        assert_eq!(eta(50.0, -140.0, 280.0).text().unwrap(), "0:49 to empty");
+        assert_eq!(eta(9.5, -60.0, 1100.0).text().unwrap(), "0:06 to empty");
+        assert_eq!(eta(9.0, -60.0, 1100.0), Eta::Reserve);
+        assert_eq!(eta(5.0, 60.0, 1100.0).text().unwrap(), "17h to full");
         assert_eq!(eta(99.6, 5.0, 280.0), Eta::Full);
         assert_eq!(eta(60.0, 0.5, 280.0), Eta::None);
         assert_eq!(pending_eta(60.0, -3).text().unwrap(), "-- to empty");

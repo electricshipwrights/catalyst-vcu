@@ -15,6 +15,7 @@ import {
   type SimParams,
   type SourceKind,
 } from '../shared/bus'
+import { VESSEL } from '../shared/vessel'
 import { BatterySim } from './sim'
 import { CandumpSource, ReplaySource, type Source } from './sources'
 
@@ -27,18 +28,17 @@ const BASE: SimParams = {
   propulsionA: 0,
   houseA: 0,
   tempC: 24,
-  capacityAh: 280,
+  capacityAh: VESSEL.capacityAh,
   bms: true,
   mppt: true,
   motor: true,
   charger: true,
   shore: false,
-  chargerMaxA: 110,
 }
 
 const INITIAL: Record<BusName, { params: SimParams; soc: number }> = {
-  port: { params: { ...BASE, solarA: 142, propulsionA: 170, houseA: 32 }, soc: 64 },
-  stbd: { params: { ...BASE, solarA: 168, propulsionA: 125, houseA: 13 }, soc: 71 },
+  port: { params: { ...BASE, solarA: 52, propulsionA: 70, houseA: 3 }, soc: 64 },
+  stbd: { params: { ...BASE, solarA: 58, propulsionA: 65, houseA: 15 }, soc: 71 },
 }
 
 function listLogs() {

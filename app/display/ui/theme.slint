@@ -12,7 +12,7 @@ import "../fonts/Inter-DisplaySemiBold.ttf";
 export global Palette {
     in-out property <int> theme: 0;
     out property <color> bg: theme == 1 ? #f5f5f3 : #000000;
-    out property <color> track: theme == 1 ? #e0e0e2 : theme == 2 ? #1c0504 : #131417;
+    out property <color> track: theme == 1 ? #e0e0e2 : theme == 2 ? #1c0504 : #080808;
     out property <color> ink: theme == 1 ? #0b0b0c : theme == 2 ? #ff4433 : #f5f5f6;
     out property <color> dim: theme == 1 ? #6b6c70 : theme == 2 ? #ff4433 : #8a8d94;
     // Low-contrast border on the empty part of the tracks
@@ -20,6 +20,12 @@ export global Palette {
     out property <color> solar: theme == 1 ? #e0a100 : theme == 2 ? #ff4433 : #e9a13b;
     out property <color> load: theme == 1 ? #2b2d31 : theme == 2 ? #d93a2b : #a98bff;
     out property <color> house: theme == 1 ? #a4a7ad : theme == 2 ? #9a2a1d : #5d4c8f;
+}
+
+// User settings that aren't colors (theme lives in Palette)
+export global Prefs {
+    // Bar scales: 0 relative (solar on its own scale), 1 absolute (solar on the load scale)
+    in-out property <int> scale: 0;
 }
 
 export global Fonts {

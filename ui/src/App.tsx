@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { BatteryBox } from './bench/BatteryBox'
 import { Harness } from './bench/Harness'
 import { Presets } from './bench/Presets'
+import { Specs } from './bench/Specs'
 import { RendererToggle, SmoothingToggle, SpeedToggle, ThemeToggle } from './bench/Toggles'
 import { useServerStatus } from './bus'
 import { BUTTONS, pressButton } from './display/buttons'
@@ -59,6 +60,7 @@ export function App() {
           <Presets />
           <SmoothingToggle />
           <SpeedToggle />
+          <ThemeToggle />
         </div>
         <div className="controls controls-end">
           <div className="device-meta">
@@ -73,7 +75,6 @@ export function App() {
             </a>
           </div>
           <RendererToggle />
-          <ThemeToggle />
         </div>
       </div>
       <div className="stage" ref={stageRef}>
@@ -86,16 +87,19 @@ export function App() {
         <div className="box-slot" ref={portRef}>
           <BatteryBox bus="port" status={port} logs={logs} />
         </div>
-        <div className="bezel" ref={bezelRef}>
-          {/* The board is mounted upside down, so its buttons are above the screen */}
-          <div className="hw-buttons" style={{ width: 320 * zoom }}>
-            {BUTTONS.map((label, i) => (
-              <button key={label} onClick={() => pressButton(i)} aria-label={`button ${label}`}>
-                {label}
-              </button>
-            ))}
+        <div className="board-col">
+          <div className="bezel" ref={bezelRef}>
+            {/* The board is mounted upside down, so its buttons are above the screen */}
+            <div className="hw-buttons" style={{ width: 320 * zoom }}>
+              {BUTTONS.map((label, i) => (
+                <button key={label} onClick={() => pressButton(i)} aria-label={`button ${label}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Screen zoom={zoom} />
           </div>
-          <Screen zoom={zoom} />
+          <Specs />
         </div>
         <div className="box-slot" ref={stbdRef}>
           <BatteryBox bus="stbd" status={stbd} logs={logs} />

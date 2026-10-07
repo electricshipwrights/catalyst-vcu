@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { BUS_IFACE, BUS_LABEL, type BusName, type BusStatus, type SimParams, type SimPatch } from '../../shared/bus'
+import { VESSEL } from '../../shared/vessel'
 import { send } from '../bus'
 import { Traffic } from './Traffic'
 
@@ -57,11 +58,10 @@ function SimControls({ bus, sim }: { bus: BusName; sim: BusStatus['sim'] }) {
   )
   return (
     <>
-      <Slider label="Solar (MPPT)" value={sim.solarA} min={0} max={400} unit="A" onChange={(v) => patch({ solarA: v })} />
-      <Slider label="Propulsion" value={sim.propulsionA} min={0} max={400} unit="A" onChange={(v) => patch({ propulsionA: v })} />
-      <Slider label="House" value={sim.houseA} min={0} max={100} unit="A" onChange={(v) => patch({ houseA: v })} />
+      <Slider label="Solar (MPPT)" value={sim.solarA} min={0} max={VESSEL.solarMaxA} unit="A" onChange={(v) => patch({ solarA: v })} />
+      <Slider label="Propulsion" value={sim.propulsionA} min={0} max={350} unit="A" onChange={(v) => patch({ propulsionA: v })} />
+      <Slider label="House" value={sim.houseA} min={0} max={VESSEL.houseMaxA} unit="A" onChange={(v) => patch({ houseA: v })} />
       <Slider label="SOC" value={sim.soc} min={0} max={100} step={0.5} unit="%" onChange={(v) => patch({ soc: v })} />
-      <Slider label="Charger max" value={sim.chargerMaxA} min={0} max={120} unit="A" onChange={(v) => patch({ chargerMaxA: v })} />
       <Slider label="Temp" value={sim.tempC} min={-25} max={65} unit="°C" onChange={(v) => patch({ tempC: v })} />
       <div className="toggles">
         <span>on bus:</span>

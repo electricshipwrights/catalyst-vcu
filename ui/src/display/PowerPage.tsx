@@ -1,18 +1,19 @@
 import type { BusName } from "../../shared/bus";
-import { SCALE_MAX_A, powerView, type PowerView } from "./power";
-import { useSmoothing } from "./settings";
+import { SCALE_MAX_A, SOLAR_SCALE_A, powerView, type PowerView } from "./power";
+import { useScale, useSmoothing } from "./settings";
 import { useSide } from "./useSide";
 
-const TRACK_W = 126;
-const TRACK_X: Record<BusName, number> = { port: 10, stbd: 184 };
-const SOLAR_Y = 132;
-const LOAD_Y = 162;
+const TRACK_W = 124;
+const TRACK_X: Record<BusName, number> = { port: 10, stbd: 186 };
+const SOLAR_Y = 148;
+const LOAD_Y = 170;
 
 type SegKind = "solar" | "propulsion" | "house";
 type Seg = { from: number; to: number; kind: SegKind };
 
-const px = (a: number) =>
-  (Math.min(Math.max(a, 0), SCALE_MAX_A) / SCALE_MAX_A) * TRACK_W;
+// Amps to pixels along a track whose full scale is `max`
+const px = (a: number, max = SCALE_MAX_A) =>
+  (Math.min(Math.max(a, 0), max) / max) * TRACK_W;
 
 function solarSegs(v: PowerView): Seg[] {
   if (!v.online) return [];
@@ -28,26 +29,29 @@ function loadSegs(v: PowerView): Seg[] {
 }
 
 // markEnd: a line in the load color at the end of the bar (the total)
+// max: the track's full scale in amps
 function Track({
   side,
   top,
   segs,
   markEnd = false,
+  max = SCALE_MAX_A,
 }: {
   side: BusName;
   top: number;
   segs: Seg[];
   markEnd?: boolean;
+  max?: number;
 }) {
-  const end = px(Math.max(0, ...segs.map((s) => s.to)));
+  const end = px(Math.max(0, ...segs.map((s) => s.to)), max);
   return (
     <div
       className={`track track-${side}`}
       style={{ top, left: TRACK_X[side], width: TRACK_W }}
     >
       {segs.map((s) => {
-        const offset = px(s.from);
-        const width = px(s.to) - offset;
+        const offset = px(s.from, max);
+        const width = px(s.to, max) - offset;
         if (width <= 0) return null;
         return (
           <div
@@ -71,10 +75,10 @@ function Track({
   );
 }
 
-// Scale ends only: 400 at the outer end of each track, 0 at the inner end
-function Ticks({ side }: { side: BusName }) {
+// Scale ends only: full scale at the outer end of each track, 0 at the inner end
+function Ticks({ side, max }: { side: BusName; max: number }) {
   const x = TRACK_X[side];
-  const labels = side === "port" ? [400, 0] : [0, 400];
+  const labels = side === "port" ? [max, 0] : [0, max];
   return (
     <>
       {labels.map((a, i) => (
@@ -191,13 +195,20 @@ export function PowerPage() {
   const smoothing = useSmoothing();
   const port = powerView(useSide("port"), smoothing);
   const stbd = powerView(useSide("stbd"), smoothing);
+  // Relative: solar on its own scale; absolute: on the load scale
+  const solarMax = useScale() === "absolute" ? SCALE_MAX_A : SOLAR_SCALE_A;
   return (
     <div className="page power">
       <SideHead side="port" v={port} />
       <SideHead side="stbd" v={stbd} />
 
-      <Track side="port" top={SOLAR_Y} segs={solarSegs(port)} />
-      <Track side="stbd" top={SOLAR_Y} segs={solarSegs(stbd)} />
+      {/* Solar has its own scale, with its axis above the track */}
+      <div className="ticks" style={{ top: SOLAR_Y - 13 }}>
+        <Ticks side="port" max={solarMax} />
+        <Ticks side="stbd" max={solarMax} />
+      </div>
+      <Track side="port" top={SOLAR_Y} segs={solarSegs(port)} max={solarMax} />
+      <Track side="stbd" top={SOLAR_Y} segs={solarSegs(stbd)} max={solarMax} />
       <div className="row-label" style={{ top: SOLAR_Y }}>
         SOLAR
       </div>
@@ -209,8 +220,8 @@ export function PowerPage() {
       </div>
 
       <div className="ticks">
-        <Ticks side="port" />
-        <Ticks side="stbd" />
+        <Ticks side="port" max={SCALE_MAX_A} />
+        <Ticks side="stbd" max={SCALE_MAX_A} />
       </div>
 
       <Footer side="port" v={port} />

@@ -35,25 +35,26 @@ const TICK_MS = 100
 // Scenario, in seconds
 const bmsOn = (t: number) => (t >= 3 && t < 100) || t >= 112
 const soc = (t: number) => (t < 60 ? 64 - 0.02 * t : t < 100 ? Math.min(100, 98.8 + (t - 60) * 0.05) : 41 - 0.01 * (t - 112))
-// From 180 s: the bench's "Full throttle" preset (solar 150, propulsion 380, house 25)
+// From 180 s: the bench's "Full throttle" preset (solar 55, propulsion 320, house 10)
 const fullThrottle = (t: number) => t >= 180
-const solar22 = (t: number) => (fullThrottle(t) ? 150 + 5 * Math.sin(t / 3) : t < 130 ? 80 + 6 * Math.sin(t / 3) : 0.3)
-const solar23 = (t: number) => (t < 40 ? 62 + 4 * Math.sin(t / 5) : null)
+// Two MPPTs per side, about 34 A each at full sun
+const solar22 = (t: number) => (fullThrottle(t) ? 30 + 3 * Math.sin(t / 3) : t < 130 ? 32 + 3 * Math.sin(t / 3) : 0.3)
+const solar23 = (t: number) => (t < 40 ? 30 + 2 * Math.sin(t / 5) : null)
 const motorOn = (t: number) => (t >= 3 && t < 110) || fullThrottle(t)
 const propulsion = (t: number) =>
   !motorOn(t) || (t >= 60 && t < 100)
     ? 0
     : fullThrottle(t)
-      ? 380 + 4 * Math.sin(t * 2)
+      ? 320 + 4 * Math.sin(t * 2)
       : t < 10
         ? 0
         : t < 25
-          ? 170 + 3 * Math.sin(t * 2)
-          : 60 + Math.sin(t)
+          ? 300 + 3 * Math.sin(t * 2)
+          : 70 + Math.sin(t)
 const chargerOn = (t: number) => t >= 60 && t < 100
 const shore = (t: number) => t < 90
 const charger = (t: number) => (chargerOn(t) && shore(t) ? 40 : 0)
-const house = (t: number) => (fullThrottle(t) ? 25 : t < 150 ? 32 : 0.4)
+const house = (t: number) => (fullThrottle(t) ? 10 : t < 150 ? 12 : 0.4)
 const packA = (t: number) => propulsion(t) + house(t) - solar22(t) - (solar23(t) ?? 0) - charger(t)
 
 type Timed = { at: number; frame: Frame }

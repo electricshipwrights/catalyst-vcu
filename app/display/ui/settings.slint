@@ -1,30 +1,33 @@
-// Port of ui/src/display/SettingsPage.tsx: the settings view (button C).
+// Port of ui/src/display/SettingsPage.tsx: the settings view (button C),
+// groups of large touch targets with the active one filled like the nav.
 
-import { Palette, Label } from "theme.slint";
+import { Palette, Prefs, Label } from "theme.slint";
 
-export component SettingsPage {
-    // The theme was picked here (0 dark, 1 light, 2 night), for saving
-    callback theme-selected(int);
-    width: 320px;
-    height: 240px;
+// A labelled row of options. Positioned at the label's top; 64px tall.
+component Choice {
+    in property <string> label;
+    in property <[string]> options;
+    in property <int> selected;
+    callback chosen(int);
+    width: 300px;
+    height: 64px;
 
     property <length> gap: 8px;
-    property <length> option-w: (300px - 2 * self.gap) / 3;
+    property <length> option-w: (self.width - (root.options.length - 1) * self.gap) / root.options.length;
 
     Label {
-        x: 10px;
-        y: 31px;
-        text: "THEME";
+        x: 0;
+        y: 1px;
+        text: root.label;
     }
 
-    // Large touch targets; the active one filled like the nav
-    for name[i] in ["DARK", "LIGHT", "NIGHT"]: Rectangle {
-        x: 10px + i * (root.option-w + root.gap);
-        y: 50px;
+    for name[i] in root.options: Rectangle {
+        x: i * (root.option-w + root.gap);
+        y: 20px;
         width: root.option-w;
         height: 44px;
-        background: i == Palette.theme ? Palette.track : transparent;
-        border-width: i == Palette.theme ? 0 : 1px;
+        background: i == root.selected ? Palette.track : transparent;
+        border-width: i == root.selected ? 0 : 1px;
         border-color: Palette.edge;
 
         Text {
@@ -32,14 +35,45 @@ export component SettingsPage {
             font-size: 13px;
             font-weight: 600;
             letter-spacing: 0.65px;
-            color: i == Palette.theme ? Palette.ink : Palette.dim;
+            color: i == root.selected ? Palette.ink : Palette.dim;
         }
 
         TouchArea {
             clicked => {
-                Palette.theme = i;
-                root.theme-selected(i);
+                root.chosen(i);
             }
+        }
+    }
+}
+
+export component SettingsPage {
+    // A setting was picked here, for saving
+    callback theme-selected(int);
+    callback scale-selected(int);
+    width: 320px;
+    height: 240px;
+
+    Choice {
+        x: 10px;
+        y: 30px;
+        label: "THEME";
+        options: ["DARK", "LIGHT", "NIGHT"];
+        selected: Palette.theme;
+        chosen(i) => {
+            Palette.theme = i;
+            root.theme-selected(i);
+        }
+    }
+
+    Choice {
+        x: 10px;
+        y: 108px;
+        label: "SCALE";
+        options: ["RELATIVE", "ABSOLUTE"];
+        selected: Prefs.scale;
+        chosen(i) => {
+            Prefs.scale = i;
+            root.scale-selected(i);
         }
     }
 }

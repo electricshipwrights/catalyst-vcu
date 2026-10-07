@@ -1,18 +1,31 @@
-import { THEMES, setTheme, useTheme } from './settings'
+import { SCALES, THEMES, setScale, setTheme, useScale, useTheme } from './settings'
 
-// Settings view (button C): theme choice, saved like the bench's theme toggle
-export function SettingsPage() {
-  const theme = useTheme()
+function Choice<T extends string>(props: {
+  label: string
+  values: readonly T[]
+  value: T
+  onChange: (v: T) => void
+}) {
   return (
-    <div className="page settings">
-      <div className="settings-label">THEME</div>
-      <div className="theme-options">
-        {THEMES.map((t) => (
-          <button key={t} className={t === theme ? 'on' : ''} onClick={() => setTheme(t)}>
-            {t.toUpperCase()}
+    <div>
+      <div className="settings-label">{props.label}</div>
+      <div className="options" style={{ gridTemplateColumns: `repeat(${props.values.length}, 1fr)` }}>
+        {props.values.map((v) => (
+          <button key={v} className={v === props.value ? 'on' : ''} onClick={() => props.onChange(v)}>
+            {v.toUpperCase()}
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+// Settings view (button C), saved like the bench's toggles
+export function SettingsPage() {
+  return (
+    <div className="page settings">
+      <Choice label="THEME" values={THEMES} value={useTheme()} onChange={setTheme} />
+      <Choice label="SCALE" values={SCALES} value={useScale()} onChange={setScale} />
     </div>
   )
 }
