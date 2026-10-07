@@ -1,7 +1,8 @@
 """Talking to the CoreMP135 over its USB-C serial console (no network needed).
 
 The console appears as /dev/cu.usbmodem* on a Mac or /dev/ttyACM* on Linux;
-set PORT to pick another. Log in once per boot with `serial.py root root`.
+set PORT to pick another. `run` and `grab` log in as root/root if the board is
+at its login prompt (as it is after every boot).
 """
 
 import base64
@@ -34,6 +35,7 @@ class Console:
         attrs[4] = attrs[5] = termios.B115200
         termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
         self.drain(0.3)
+        self.logged_in = False
 
     def close(self):
         os.close(self.fd)
@@ -63,11 +65,26 @@ class Console:
         self.write(line.encode() + b"\r")
         return self.drain(quiet)
 
+    def login(self, user="root", password="root"):
+        """Logs in if the console is at a login prompt (as it is after a reboot)."""
+        if self.logged_in:
+            return
+        text = self.send("", 1.0).rstrip()
+        if text.endswith("Password:"):
+            text = self.send("", 4.0).rstrip()  # abandon a half-typed login
+        if text.endswith("login:"):
+            self.send(user, 1.0)
+            self.send(password, 3.0)
+        self.logged_in = True
+
     def run(self, command, quiet=1.5):
         """Runs a shell command and returns only its output."""
+        self.login()
         text = self.send(f"echo @@BEGIN; {command}; echo @@END", quiet)
         match = re.search(r"\n@@BEGIN\r?\n(.*?)@@END", text, re.S)
-        return match.group(1).strip() if match else text
+        if not match:
+            raise SystemExit(f"no answer from the board's shell to {command!r}; it printed:\n{text[-300:]}")
+        return match.group(1).strip()
 
     def md5(self, remote):
         out = self.run(f"md5sum {remote} 2>/dev/null")
@@ -96,6 +113,7 @@ class Console:
     def grab(self, width=320, height=240):
         """Reads the LCD framebuffer (/dev/fb1, RGB565) as rows of (r, g, b)."""
         size = width * height * 2
+        self.login()
         text = self.send(f"echo BEGIN; head -c {size} /dev/fb1 | gzip -c | base64; echo END", 2.0)
         body = re.search(r"\nBEGIN\r?\n(.*?)\r?\nEND", text, re.S).group(1)
         raw = gzip.decompress(base64.b64decode(re.sub(r"\s", "", body)))

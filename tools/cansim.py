@@ -1,36 +1,127 @@
 #!/usr/bin/env python3
 """Simulated CAN traffic on the board, so the display shows live data without
-batteries. Puts both CAN controllers in loopback and replays the parity
-scenario (app/core/tests/fixtures/parity.json) on a loop with canplayer:
-port on can0, starboard on can1 running 20 s behind.
+batteries. Puts both CAN controllers in loopback and loops a scenario with
+canplayer: port on can0, starboard on can1.
 
-usage: cansim.py start | stop | status
+usage: cansim.py start [demo|parity] | stop | status
+
+  demo    (default) steps through the bench's presets, 30 s each with short
+          ramps between: cruise, full throttle, moored with sun, shore power,
+          night. Loops every 2.5 min; starboard runs two steps out of phase.
+          Both sides are always online.
+  parity  the test scenario (app/core/tests/fixtures/parity.json), which goes
+          offline and quiet on purpose to exercise edge cases. Starboard runs
+          20 s behind.
 """
 
 import json
+import math
 import pathlib
+import struct
 import sys
 
 from board import Console
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "app/core/tests/fixtures/parity.json"
-REMOTE = "/tmp/vcu-scenario.log"
 BITRATE = 250000
-STBD_DELAY_MS = 20000
+
+# Frame formats, as in ui/shared/protocol.ts
+ORION_PACK, ORION_LIMITS, MOTOR_STATUS, ELCON_STATUS = 0x6B0, 0x6B1, 0x700, 0x18FF50E5
+PGN_BATTERY_STATUS, MPPT_SOURCE = 127508, 0x22
+RELAYS = 0xC04B
 
 
-def scenario():
-    """The fixture's frames as a canplayer log, on both buses."""
-    frames = json.loads(FIXTURE.read_text())["frames"]
+def orion(can_id, payload):
+    payload = payload[:7]
+    return payload + bytes([(can_id + 8 + sum(payload)) & 0xFF])
+
+
+def clamp_int(v, lo, hi):
+    return max(lo, min(hi, round(v)))
+
+
+def pack_status(amps, volts, soc):
+    return orion(ORION_PACK, struct.pack(">hHBH", clamp_int(amps * 10, -32768, 32767), clamp_int(volts * 10, 0, 0xFFFF),
+                                          clamp_int(soc * 2, 0, 200), RELAYS))
+
+
+def pack_limits():
+    return orion(ORION_LIMITS, struct.pack(">HHbbB", 494, 182, 24, 22, 0))
+
+
+def motor_status(amps):
+    return struct.pack(">h", clamp_int(amps * 10, -32768, 32767)) + bytes(6)
+
+
+def battery_status(amps, sid):
+    return struct.pack("<BHhHB", 0, 5210, clamp_int(amps * 10, -32768, 32765), 0xFFFF, sid & 0xFF)
+
+
+def elcon_status(amps, volts):
+    return struct.pack(">HHB", clamp_int(volts * 10, 0, 0xFFFF), clamp_int(amps * 10, 0, 0xFFFF), 0) + bytes(3)
+
+
+N2K_ID = (6 << 26) | (PGN_BATTERY_STATUS << 8) | MPPT_SOURCE
+
+# Demo: (solar, propulsion, house, charger) per step, from the bench's presets
+STEPS = [
+    (140, 170, 30, 0),  # cruise
+    (150, 380, 25, 0),  # full throttle
+    (170, 0, 12, 0),    # moored, sun
+    (0, 0, 15, 40),     # shore power
+    (0, 0, 15, 0),      # night
+]
+STEP_S, RAMP_S = 30, 3
+LOOP_S = STEP_S * len(STEPS)
+
+
+def demo_values(t):
+    """Currents at t seconds: each step holds, then ramps into the next."""
+    i = int(t // STEP_S) % len(STEPS)
+    into = t % STEP_S
+    now, nxt = STEPS[i], STEPS[(i + 1) % len(STEPS)]
+    k = max(0.0, (into - (STEP_S - RAMP_S)) / RAMP_S)
+    solar, prop, house, charger = (a + (b - a) * k for a, b in zip(now, nxt))
+    wiggle = math.sin(t * 1.3)
+    return solar + (3 * wiggle if solar else 0), prop + (2 * wiggle if prop else 0), house, charger, i
+
+
+def demo():
     lines = []
-    for at, can_id, ext, data in frames:
+    for iface, offset_s, base_soc in (("can0", 0, 62), ("can1", 2 * STEP_S, 74)):
+        for tick in range(LOOP_S * 10):  # 10 Hz
+            t = tick / 10
+            solar, prop, house, charger, step = demo_values((t + offset_s) % LOOP_S)
+            soc = base_soc + 4 * math.sin(2 * math.pi * t / LOOP_S)  # seamless over the loop
+            pack_a = prop + house - solar - charger
+            frames = [(ORION_PACK, False, pack_status(pack_a, 52 + soc / 50, soc)), (MOTOR_STATUS, False, motor_status(prop))]
+            if tick % 10 == 0:
+                frames.append((ORION_LIMITS, False, pack_limits()))
+                frames.append((N2K_ID, True, battery_status(solar, tick // 10)))
+                if STEPS[step][3]:  # charger only reports on shore power
+                    frames.append((ELCON_STATUS, True, elcon_status(charger, 54.2)))
+            for n, (can_id, ext, data) in enumerate(frames):
+                ts = t + n * 0.002
+                hex_id = f"{can_id:08X}" if ext else f"{can_id:03X}"
+                lines.append((ts, f"({ts:.6f}) {iface} {hex_id}#{data.hex().upper()}"))
+    lines.sort()
+    return lines
+
+
+def parity():
+    """The fixture's frames on both buses, starboard 20 s behind."""
+    lines = []
+    for at, can_id, ext, data in json.loads(FIXTURE.read_text())["frames"]:
         hex_id = f"{can_id:08X}" if ext else f"{can_id:03X}"
-        for iface, delay in (("can0", 0), ("can1", STBD_DELAY_MS)):
+        for iface, delay in (("can0", 0), ("can1", 20000)):
             t = (at + delay) / 1000
             lines.append((t, f"({t:.6f}) {iface} {hex_id}#{data}"))
     lines.sort()
-    return ("\n".join(line for _, line in lines) + "\n").encode()
+    return lines
+
+
+SCENARIOS = {"demo": demo, "parity": parity}
 
 
 def set_loopback(console, on):
@@ -43,29 +134,35 @@ def set_loopback(console, on):
 
 def status(console):
     player = console.run("pidof canplayer")
+    playing = console.run("cat /tmp/vcu-cansim 2>/dev/null")
     loopback = console.run("ip -details link show can0 | grep -c LOOPBACK; ip -details link show can1 | grep -c LOOPBACK")
     display = console.run("pidof vcu-display")
-    print(f"replay:   {'running (pid ' + player + ')' if player else 'stopped'}")
+    print(f"replay:   {'running ' + (playing or '') + ' (pid ' + player + ')' if player else 'stopped'}")
     print(f"loopback: can0 {'on' if loopback.split()[0] != '0' else 'off'}, can1 {'on' if loopback.split()[-1] != '0' else 'off'}")
     print(f"display:  {'running' if display else 'not running'}")
 
 
 def main():
-    command = sys.argv[1] if len(sys.argv) > 1 else "status"
+    args = sys.argv[1:] or ["status"]
     console = Console()
     try:
-        if command == "start":
-            seconds = console.upload(scenario(), REMOTE)
-            print(f"scenario uploaded ({seconds:.0f}s)" if seconds else "scenario already on the board")
+        if args[0] == "start":
+            name = args[1] if len(args) > 1 else "demo"
+            if name not in SCENARIOS:
+                raise SystemExit(__doc__)
+            log = ("\n".join(line for _, line in SCENARIOS[name]()) + "\n").encode()
+            remote = f"/tmp/vcu-{name}.log"
+            seconds = console.upload(log, remote)
+            print(f"{name} scenario uploaded ({seconds:.0f}s)" if seconds else f"{name} scenario already on the board")
             console.run("kill $(pidof canplayer) 2>/dev/null")
             set_loopback(console, True)
-            console.run(f"(canplayer -l i -I {REMOTE} > /dev/null 2>&1 &)")
+            console.run(f"(canplayer -l i -I {remote} > /dev/null 2>&1 &); echo {name} > /tmp/vcu-cansim")
             status(console)
-        elif command == "stop":
-            console.run("kill $(pidof canplayer) 2>/dev/null")
+        elif args[0] == "stop":
+            console.run("kill $(pidof canplayer) 2>/dev/null; rm -f /tmp/vcu-cansim")
             set_loopback(console, False)
             status(console)
-        elif command == "status":
+        elif args[0] == "status":
             status(console)
         else:
             raise SystemExit(__doc__)

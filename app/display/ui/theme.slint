@@ -11,8 +11,8 @@ import "../fonts/Inter-DisplaySemiBold.ttf";
 // only in the bars.
 export global Palette {
     in-out property <int> theme: 0;
-    out property <color> bg: theme == 1 ? #f5f5f3 : theme == 2 ? #000000 : #131417;
-    out property <color> track: theme == 1 ? #e0e0e2 : theme == 2 ? #1c0504 : #24262b;
+    out property <color> bg: theme == 1 ? #f5f5f3 : #000000;
+    out property <color> track: theme == 1 ? #e0e0e2 : theme == 2 ? #1c0504 : #131417;
     out property <color> ink: theme == 1 ? #0b0b0c : theme == 2 ? #ff4433 : #f5f5f6;
     out property <color> dim: theme == 1 ? #6b6c70 : theme == 2 ? #ff4433 : #8a8d94;
     // Low-contrast border on the empty part of the tracks

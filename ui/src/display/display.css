@@ -37,8 +37,8 @@
 
   /* Simple palette: one bright and one dim text color, one gray for lines and
      surfaces, and color only in the bars */
-  --bg: #131417;
-  --track: #24262b;
+  --bg: #000000;
+  --track: #131417;
   --ink: #f5f5f6;
   --dim: #8a8d94;
   --edge: #3a3d43;

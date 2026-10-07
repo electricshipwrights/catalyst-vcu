@@ -49,12 +49,16 @@ Run these from `app/`, with the board plugged in over USB-C. The scripts find it
 To see live data without batteries, simulate the CAN buses:
 
 ```
-../tools/cansim.py start          # loopback on both buses + looped scenario replay
+../tools/cansim.py start          # loopback on both buses + looped demo
+../tools/cansim.py start parity   # or the parity test scenario
 ../tools/cansim.py status
 ../tools/cansim.py stop           # stop the replay, buses back to normal
 ```
 
-`cansim.py` replays the parity scenario (`core/tests/fixtures/parity.json`, 220 s, looped), with port on `can0` and starboard on `can1` running 20 s behind. It covers discharging, solar, shore charging, a BMS dropout and devices going stale, then ends with the bench's "Full throttle" preset (380 A propulsion) from 180 s. To change what it plays, edit the scenario in `ui/scripts/parity.ts`, run `pnpm parity` in `ui/`, then `cansim.py start` again. It puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
+- **demo** (the default) steps through the bench's presets, 30 s each with 3 s ramps between: cruise, full throttle, moored with sun, shore power, night. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Both sides are always online. It's generated in `cansim.py` itself.
+- **parity** replays the test scenario (`core/tests/fixtures/parity.json`, 220 s), with starboard 20 s behind. It goes offline and quiet on purpose, to exercise the edge cases: a BMS dropout, devices going stale, near-zero currents. It ends with full throttle from 180 s. To change it, edit `ui/scripts/parity.ts` and run `pnpm parity` in `ui/`.
+
+Either one puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
 
 On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,light,night,offline}.png` through the device's software renderer.
 
