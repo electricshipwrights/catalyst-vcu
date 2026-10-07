@@ -1,14 +1,46 @@
-.lcd {
-  --cond: 'Barlow Condensed', sans-serif;
-  --semi: 'Barlow Semi Condensed', sans-serif;
+/* Inter with tabular digits as the default (the device can't switch them on),
+   and its Display cut for the large SOC numbers. Built from Inter 4 with
+   fonttools; see app/README.md. */
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter/Inter-Regular.ttf') format('truetype');
+  font-weight: 400;
+}
 
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter/Inter-Medium.ttf') format('truetype');
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter/Inter-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter/Inter-Bold.ttf') format('truetype');
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'Inter Display';
+  src: url('./fonts/inter/Inter-DisplaySemiBold.ttf') format('truetype');
+  font-weight: 600;
+}
+
+.lcd {
+  --text: 'Inter', sans-serif;
+  --display: 'Inter Display', 'Inter', sans-serif;
+
+  /* Simple palette: one bright and one dim text color, one gray for lines and
+     surfaces, and color only in the bars */
   --bg: #131417;
   --track: #24262b;
   --ink: #f5f5f6;
-  --ink-2: #a0a3aa;
-  --muted: #5f626a;
-  --rule: #2f3238;
-  --dot: #3a3d44;
+  --dim: #8a8d94;
   --solar: #e9a13b;
   --load: #a98bff;
   --house: #5d4c8f;
@@ -18,26 +50,20 @@
   --bg: #f5f5f3;
   --track: #e0e0e2;
   --ink: #0b0b0c;
-  --ink-2: #3f4044;
-  --muted: #9a9a9e;
-  --rule: #c6c6ca;
-  --dot: #cfcfd2;
-  --solar: #f07800;
-  --load: #6a3bd8;
-  --house: #b8a7e6;
+  --dim: #6b6c70;
+  --solar: #e0a100;
+  --load: #2b2d31;
+  --house: #a4a7ad;
 }
 
 .lcd[data-theme='night'] {
   --bg: #000000;
   --track: #1c0504;
   --ink: #ff4433;
-  --ink-2: #a8291e;
-  --muted: #5c1610;
-  --rule: #3d0d09;
-  --dot: #3d0d09;
+  --dim: var(--ink);
   --solar: #ff4433;
-  --load: #9e2419;
-  --house: #571510;
+  --load: #d93a2b;
+  --house: #9a2a1d;
 }
 
 .lcd {
@@ -47,54 +73,34 @@
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--semi);
+  font-family: var(--text);
   font-variant-numeric: tabular-nums;
   user-select: none;
   touch-action: none;
   -webkit-font-smoothing: antialiased;
 }
 
-.lcd-header {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 21px;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--rule);
-}
-
-.lcd-header .title {
-  flex: 1;
-  font-weight: 700;
+/* Static labels: small, letter-spaced, dimmed so the numbers lead */
+.side-label,
+.row-label,
+.tick,
+.page.stub,
+.lcd-nav {
+  font-family: var(--text);
   font-size: 10px;
-  letter-spacing: 0.14em;
-}
-
-.lcd-header .clock {
   font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: var(--ink-2);
-  margin-right: 7px;
+  line-height: 14px;
+  letter-spacing: 0.1em;
 }
 
-.lcd-header .dots {
-  display: flex;
-  gap: 2px;
-}
-
-.lcd-header .dots button {
-  all: unset;
-  width: 4px;
-  height: 3px;
-  background: var(--dot);
-  cursor: pointer;
-}
-
-.lcd-header .dots button.on {
-  width: 9px;
-  background: var(--ink);
+/* In/out values beside the net current: small and dim */
+.footer .detail {
+  font-family: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 14px;
+  letter-spacing: 0;
+  color: var(--dim);
 }
 
 .page {
@@ -105,9 +111,32 @@
 .page.stub {
   display: grid;
   place-items: center;
-  color: var(--ink-2);
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+
+/* Top bar: one label per hardware button (above the screen when the board
+   is mounted upside down), each centered in its third */
+.lcd-nav {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 21px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--track);
+}
+
+.lcd-nav button {
+  all: unset;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+/* The active view's third is filled, like a segmented control */
+.lcd-nav button.on {
+  background: var(--track);
+  color: var(--ink);
 }
 
 .power > * {
@@ -119,19 +148,16 @@
 }
 
 .side-label {
-  top: 32px;
+  top: 34px;
   display: flex;
   align-items: center;
   gap: 5px;
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--ink-2);
+  color: var(--dim);
 }
 
 .soc {
-  top: 41px;
-  font-family: var(--cond);
+  top: 43px;
+  font-family: var(--display);
   font-weight: 600;
   font-size: 47px;
   line-height: 47px;
@@ -139,14 +165,50 @@
 }
 
 .soc .pct {
-  font-family: var(--semi);
+  font-family: var(--text);
   font-weight: 500;
   font-size: 15px;
   margin-left: 1px;
 }
 
+.eta {
+  top: 91px;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--dim);
+}
+
+.eta-time {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Charging/discharging and shore-power icons beside the SOC, centered on its digits */
+.soc .flow-icon,
+.soc .shore-icon {
+  width: auto;
+  height: 18px;
+  vertical-align: top;
+  position: relative;
+  top: 15px;
+}
+
+/* The plug a little smaller than the flow icon, on the same center */
+.soc .shore-icon {
+  height: 15px;
+  top: 17px;
+}
+
+.soc.side-port :is(.flow-icon, .shore-icon) {
+  margin-left: 8px;
+}
+
+.soc.side-stbd :is(.flow-icon, .shore-icon) {
+  margin-right: 8px;
+}
+
 .soc.offline {
-  color: var(--muted);
+  color: var(--dim);
 }
 
 .side-port {
@@ -159,20 +221,15 @@
   justify-content: flex-end;
 }
 
-.soc-caption {
-  top: 74px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  color: var(--ink-2);
-}
-
 .track {
   height: 20px;
   background: var(--track);
   overflow: hidden;
+}
+
+/* A 1px outline, outside the bar */
+.track {
+  outline: 1px solid var(--dim);
 }
 
 .track-port::after {
@@ -201,38 +258,47 @@
   background: var(--house);
 }
 
+.seg-end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--load);
+}
+
 .row-label {
   left: 138px;
   width: 44px;
   height: 20px;
-  line-height: 20px;
+  padding-top: 3px;
   text-align: center;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--ink-2);
+  color: var(--dim);
 }
 
 .ticks {
-  top: 150px;
+  top: 185px;
   left: 0;
 }
 
 .tick {
   position: absolute;
-  font-size: 10px;
-  color: var(--ink-2);
+  color: var(--dim);
 }
 
 .rule {
-  top: 187px;
+  top: 115px;
   left: 10px;
   right: 10px;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--track);
 }
 
 .footer {
-  top: 197px;
+  top: 209px;
   color: var(--ink);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
 }
 
 .footer-port {
@@ -242,10 +308,11 @@
 .footer-stbd {
   right: 10px;
   text-align: right;
+  flex-direction: row-reverse;
 }
 
 .footer.offline {
-  color: var(--muted);
+  color: var(--dim);
 }
 
 .footer .net {
@@ -255,9 +322,14 @@
 }
 
 .footer .detail {
-  font-size: 11px;
-  line-height: 15px;
   margin-top: 2px;
+}
+
+/* In and out beside the net current */
+.footer .flows {
+  display: flex;
+  gap: 8px;
+  margin-top: 0;
 }
 
 .footer .net {
@@ -272,10 +344,6 @@
 
 .flow-icon {
   fill: currentColor;
-}
-
-.flow-icon.charging {
-  fill: var(--solar);
 }
 
 .shore-icon {

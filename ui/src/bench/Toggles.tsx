@@ -1,6 +1,16 @@
 import { SIM_SPEEDS } from '../../shared/bus'
 import { send, useServerStatus } from '../bus'
-import { THEMES, setSmoothing, setTheme, useSmoothing, useTheme, type Smoothing } from '../display/settings'
+import {
+  RENDERERS,
+  THEMES,
+  setRenderer,
+  setSmoothing,
+  setTheme,
+  useRenderer,
+  useSmoothing,
+  useTheme,
+  type Smoothing,
+} from '../display/settings'
 
 function ToggleRow<T extends string | number>(props: {
   label: string
@@ -50,3 +60,16 @@ export function ThemeToggle() {
     <ToggleRow label="theme" options={THEMES.map((t) => ({ value: t, label: t }))} value={useTheme()} onChange={setTheme} />
   )
 }
+
+export function RendererToggle() {
+  return (
+    <ToggleRow
+      label="renderer"
+      options={RENDERERS.map((r) => ({ value: r, label: r }))}
+      value={useRenderer()}
+      onChange={setRenderer}
+    />
+  )
+}
+
+

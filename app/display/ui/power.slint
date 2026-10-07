@@ -1,0 +1,385 @@
+// Port of ui/src/display/PowerPage.tsx. Positions are the prototype's CSS
+// pixels. Text y values are CSS line-box tops adjusted for Inter's metrics
+// (a Slint Text box is the font's ascent + descent, 1.21 em).
+
+import { Palette, Fonts, Label } from "theme.slint";
+
+// One battery side, as computed by vcu_core::power_view.
+export struct SideView {
+    online: bool,
+    soc: int,
+    shore: bool,
+    solar-a: int,
+    in-a: int,
+    out-a: int,
+    propulsion-a: int,
+    net-a: int,
+    // 0 none, 1 full, 2 pending (still settling), 3 time
+    eta-kind: int,
+    eta-time: string,
+    eta-to-full: bool,
+}
+
+global Scale {
+    out property <length> track-w: 128px;
+    out property <length> port-x: 10px;
+    out property <length> stbd-x: 182px;
+    out property <length> solar-y: 132px;
+    out property <length> load-y: 162px;
+
+    // Amps to pixels along a track (full scale 400 A)
+    public pure function px(amps: int) -> length {
+        return max(0, min(amps, 400)) / 400 * self.track-w;
+    }
+
+    // "+12", "−7" or "0"
+    public pure function signed(n: int) -> string {
+        return n > 0 ? "+" + n : n < 0 ? "−" + (-n) : "0";
+    }
+}
+
+// A bar with up to two segments: [0, a) and [a, b). Port bars grow leftward.
+// With `mark-end`, a 2px line in the load color marks the end of the bar.
+// It has a 1px outline outside the bar in the dim color.
+component Track {
+    in property <bool> port;
+    in property <int> a;
+    in property <int> b;
+    in property <color> a-color;
+    in property <color> b-color;
+    in property <bool> mark-end;
+    property <length> end: Scale.px(max(root.a, root.b));
+    width: Scale.track-w;
+    height: 20px;
+
+    Rectangle {
+        x: -1px;
+        y: -1px;
+        width: root.width + 2px;
+        height: root.height + 2px;
+        border-width: 1px;
+        border-color: Palette.dim;
+    }
+
+    Rectangle {
+        background: Palette.track;
+        clip: true;
+
+        Rectangle {
+            y: 0;
+            width: Scale.px(root.a);
+            height: parent.height;
+            x: root.port ? parent.width - self.width : 0;
+            background: root.a-color;
+        }
+
+        Rectangle {
+            y: 0;
+            width: max(0px, Scale.px(root.b) - Scale.px(root.a));
+            height: parent.height;
+            x: root.port ? parent.width - Scale.px(root.b) : Scale.px(root.a);
+            background: root.b-color;
+        }
+
+        if root.mark-end && root.end > 0: Rectangle {
+            y: 0;
+            width: 2px;
+            height: parent.height;
+            x: root.port ? parent.width - root.end : root.end - self.width;
+            background: Palette.load;
+        }
+    }
+}
+
+// Icons, scaled from the prototype's SVGs. Paths wind counter-clockwise:
+// Slint's FemtoVG renderer (not used now) draws clockwise outlines too large.
+component ShoreIcon inherits Path {
+    height: 15px;
+    width: self.height * 9 / 11;
+    viewbox-width: 9;
+    viewbox-height: 11;
+    commands: "M2 0 V3 H0 V5.5 C0 7.2 1.2 8.4 2.8 8.6 V11 H6.2 V8.6 C7.8 8.4 9 7.2 9 5.5 V3 H7 V0 H5.8 V3 H3.2 V0 Z";
+    fill: Palette.ink;
+}
+
+component ChargingIcon inherits Path {
+    height: 18px;
+    width: self.height * 9 / 13;
+    viewbox-width: 9;
+    viewbox-height: 13;
+    commands: "M5.5 0 L0 7.5 H4 L3 13 L9 5 H5 Z";
+    fill: Palette.ink;
+}
+
+component DischargingIcon inherits Path {
+    height: 18px;
+    width: self.height * 10 / 12;
+    viewbox-width: 10;
+    viewbox-height: 12;
+    commands: "M3.5 0 V6.5 H0 L5 12 L10 6.5 H6.5 V0 Z";
+    fill: Palette.ink;
+}
+
+// SOC with the charging/discharging icon, then the plug when on shore power,
+// on the inboard side. Positioned at the top of the 47px CSS line box.
+component Soc {
+    in property <bool> port;
+    in property <SideView> view;
+    property <color> ink: root.view.online ? Palette.ink : Palette.dim;
+    property <bool> flow: root.view.online && root.view.net-a != 0;
+    property <bool> charging: root.view.net-a > 0;
+    property <length> flow-w: root.charging ? 18px * 9 / 13 : 15px;
+    property <bool> shore: root.view.online && root.view.shore;
+
+    // The number and "%" share a baseline 40.6px below the line-box top
+    number := Text {
+        x: root.port ? 0 : pct.x - 1px - self.width;
+        y: -5px;
+        text: root.view.online ? root.view.soc : "--";
+        font-family: Fonts.display;
+        font-size: 47px;
+        font-weight: 600;
+        letter-spacing: -0.47px;
+        color: root.ink;
+    }
+
+    pct := Text {
+        x: root.port ? number.width + 1px : root.width - self.width;
+        y: 26px;
+        text: "%";
+        font-size: 15px;
+        font-weight: 500;
+        color: root.ink;
+    }
+
+    property <length> flow-x: root.port ? pct.x + pct.width + 8px : number.x - 8px - root.flow-w;
+    ChargingIcon {
+        visible: root.flow && root.charging;
+        x: root.flow-x;
+        y: 15px;
+    }
+
+    DischargingIcon {
+        visible: root.flow && !root.charging;
+        x: root.flow-x;
+        y: 15px;
+    }
+
+    if root.shore: ShoreIcon {
+        x: root.port ? (root.flow ? root.flow-x + root.flow-w : pct.x + pct.width) + 8px : (root.flow ? root.flow-x : number.x) - 8px - self.width;
+        y: 17px;
+    }
+}
+
+// "4:00 to empty" under the SOC: the time stands out, the rest is quieter
+component Eta {
+    in property <bool> port;
+    in property <SideView> view;
+    property <string> to: root.view.eta-to-full ? " to full" : " to empty";
+    property <string> time: !root.view.online || root.view.eta-kind == 0 ? "--"
+        : root.view.eta-kind == 1 ? "full"
+        : root.view.eta-kind == 2 ? "--"
+        : root.view.eta-time;
+    property <string> rest: root.view.online && root.view.eta-kind >= 2 ? root.to : "";
+
+    time-text := Text {
+        x: root.port ? 0 : rest-text.x - self.width;
+        y: 0;
+        text: root.time;
+        font-size: 13px;
+        font-weight: 600;
+        color: Palette.ink;
+    }
+
+    rest-text := Text {
+        x: root.port ? time-text.width : root.width - self.width;
+        y: 0;
+        text: root.rest;
+        font-size: 13px;
+        color: Palette.dim;
+    }
+}
+
+// Net current with in (solar + charger) and out beside it on the inboard side,
+// signed so they need no labels. Positioned at the top of the CSS footer box.
+component Footer {
+    in property <bool> port;
+    in property <SideView> view;
+
+    net := Text {
+        x: root.port ? 0 : root.width - self.width;
+        y: -1px;
+        text: root.view.online ? Scale.signed(root.view.net-a) + " A" : "NO DATA";
+        font-size: 16px;
+        font-weight: 700;
+        color: root.view.online ? Palette.ink : Palette.dim;
+    }
+
+    // Online: in then out; offline: "BMS silent"
+    in-text := Text {
+        x: root.port ? net.width + 12px : net.x - 12px - (root.view.online ? out-text.width + 8px : 0) - self.width;
+        y: root.view.online ? 2px : 3px;
+        text: root.view.online ? Scale.signed(root.view.in-a) : "BMS silent";
+        font-size: 11px;
+        color: Palette.dim;
+    }
+
+    out-text := Text {
+        x: root.port ? net.width + 12px + in-text.width + 8px : net.x - 12px - self.width;
+        y: 2px;
+        text: root.view.online ? Scale.signed(-root.view.out-a) : "";
+        font-size: 11px;
+        color: Palette.dim;
+    }
+}
+
+export component PowerPage {
+    in property <SideView> port;
+    in property <SideView> stbd;
+    width: 320px;
+    height: 240px;
+
+    Label {
+        x: 10px;
+        y: 35px;
+        text: "PORT";
+    }
+
+    Label {
+        x: 310px - self.width;
+        y: 35px;
+        text: "STBD";
+    }
+
+    Soc {
+        x: 10px;
+        y: 43px;
+        width: 145px;
+        height: 47px;
+        port: true;
+        view: root.port;
+    }
+
+    Soc {
+        x: 165px;
+        y: 43px;
+        width: 145px;
+        height: 47px;
+        port: false;
+        view: root.stbd;
+    }
+
+    Eta {
+        x: 10px;
+        y: 91px;
+        width: 145px;
+        height: 16px;
+        port: true;
+        view: root.port;
+    }
+
+    Eta {
+        x: 165px;
+        y: 91px;
+        width: 145px;
+        height: 16px;
+        port: false;
+        view: root.stbd;
+    }
+
+    Rectangle {
+        x: 10px;
+        y: 115px;
+        width: parent.width - 20px;
+        height: 1px;
+        background: Palette.track;
+    }
+
+    // Solar
+    Track {
+        x: Scale.port-x;
+        y: Scale.solar-y;
+        port: true;
+        a: root.port.online ? root.port.solar-a : 0;
+        a-color: Palette.solar;
+    }
+
+    Track {
+        x: Scale.stbd-x;
+        y: Scale.solar-y;
+        a: root.stbd.online ? root.stbd.solar-a : 0;
+        a-color: Palette.solar;
+    }
+
+    // Load: propulsion, then house up to the total out
+    Track {
+        x: Scale.port-x;
+        y: Scale.load-y;
+        port: true;
+        a: root.port.online ? root.port.propulsion-a : 0;
+        b: root.port.online ? root.port.out-a : 0;
+        a-color: Palette.load;
+        b-color: Palette.house;
+        mark-end: true;
+    }
+
+    Track {
+        x: Scale.stbd-x;
+        y: Scale.load-y;
+        a: root.stbd.online ? root.stbd.propulsion-a : 0;
+        b: root.stbd.online ? root.stbd.out-a : 0;
+        a-color: Palette.load;
+        b-color: Palette.house;
+        mark-end: true;
+    }
+
+    // Row labels, centered between the tracks
+    for label[i] in ["SOLAR", "LOAD"]: Label {
+        x: 160px - self.width / 2;
+        y: (i == 0 ? Scale.solar-y : Scale.load-y) + 4px;
+        text: label;
+    }
+
+    // Scale ends only: 400 at the outer end of each track, 0 at the inner end
+    Label {
+        x: Scale.port-x;
+        y: 186px;
+        text: "400";
+    }
+
+    Label {
+        x: Scale.port-x + Scale.track-w - self.width;
+        y: 186px;
+        text: "0";
+    }
+
+    Label {
+        x: Scale.stbd-x;
+        y: 186px;
+        text: "0";
+    }
+
+    Label {
+        x: Scale.stbd-x + Scale.track-w - self.width;
+        y: 186px;
+        text: "400";
+    }
+
+    Footer {
+        x: 10px;
+        y: 209px;
+        width: 145px;
+        height: 18px;
+        port: true;
+        view: root.port;
+    }
+
+    Footer {
+        x: 165px;
+        y: 209px;
+        width: 145px;
+        height: 18px;
+        port: false;
+        view: root.stbd;
+    }
+}

@@ -46,3 +46,11 @@ export type Theme = (typeof THEMES)[number]
 const theme = createSetting('vcu.theme', THEMES, 'dark')
 export const useTheme = theme.use
 export const setTheme = theme.set
+
+export const RENDERERS = ['react', 'slint'] as const
+export type Renderer = (typeof RENDERERS)[number]
+const renderer = createSetting('vcu.renderer', RENDERERS, 'slint')
+export const useRenderer = renderer.use
+export const setRenderer = renderer.set
+
+

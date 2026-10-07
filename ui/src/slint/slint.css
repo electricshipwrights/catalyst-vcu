@@ -1,0 +1,29 @@
+.slint-lcd {
+  position: relative;
+  width: 320px;
+  height: 240px;
+}
+
+.slint-lcd canvas {
+  display: block;
+  width: 320px;
+  height: 240px;
+  outline: none;
+}
+
+.slint-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #131417;
+  color: #a0a3aa;
+  font: 12px/1.4 ui-monospace, monospace;
+  text-align: center;
+}
+
+/* Scaled up by the bench zoom: keep LCD pixels crisp */
+.slint-lcd canvas {
+  image-rendering: pixelated;
+}

@@ -1,0 +1,4 @@
+# Static musl binary for the CoreMP135 (Cortex-A7). Linked with the lld that
+# ships with rustup, so no ARM C toolchain or matching glibc is needed.
+[target.armv7-unknown-linux-musleabihf]
+linker = "rust-lld"

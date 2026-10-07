@@ -24,6 +24,10 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 - `shared/protocol.ts` encodes and decodes every message. The simulator, the display, and the bench traffic tables all use it.
 - `src/display/power.ts` holds the pure view math: in/out/net and time to empty or full. Port it to C/LVGL if needed.
 
+## Slint renderer
+
+The bench can show either this React display or the Slint port in `../app`, which is what runs on the device. The Slint view shows the LCD's exact pixels. It shows Slint by default; switch with **renderer** in the toolbar. To build the Slint version, run `pnpm build:wasm` (setup is in `../app/README.md`). `pnpm parity` regenerates the fixture that keeps the Rust logic in step with `src/display`.
+
 ## Messages
 
 | Device | ID | Content |

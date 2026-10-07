@@ -365,3 +365,26 @@ button {
   border-color: #f4f4f5;
   color: #1b1c1f;
 }
+
+/* The device's A, B and C buttons, each above its third of the screen */
+.hw-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  justify-items: center;
+  padding-bottom: 10px;
+}
+
+.hw-buttons button {
+  width: 34px;
+  height: 18px;
+  border: 1px solid #45474d;
+  border-radius: 9px;
+  background: #1a1b1e;
+  color: #a0a3aa;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.hw-buttons button:active {
+  background: #45474d;
+}

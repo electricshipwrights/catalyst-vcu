@@ -1,0 +1,32 @@
+[package]
+name = "vcu-spike"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Board check for the CoreMP135: Slint on /dev/fb1, touch, and CAN"
+
+[dependencies]
+# Slint's MCU configuration: glyphs are pre-rendered at build time, so the
+# std feature's system-font lookup (and its fontconfig C dependency) isn't needed.
+slint = { version = "1.18.1", default-features = false, features = [
+  "compat-1-2",
+  "unsafe-single-threaded",
+  "libm",
+  "renderer-software",
+  "software-renderer-path",
+] }
+png = "0.17"
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+memmap2 = "0.9"
+socketcan = { version = "3", default-features = false }
+
+[build-dependencies]
+slint-build = "1.18.1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

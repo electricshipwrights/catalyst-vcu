@@ -20,11 +20,15 @@ export type PowerView =
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
+// Under 1 h to the minute ("0:42"), 1–7 h to 15 min ("2:15"), then whole hours ("9h")
 function hm(hours: number) {
-  if (hours >= 100) return '99:59+'
-  const step = hours >= 10 ? 15 : hours >= 3 ? 5 : 1
-  const total = Math.round((hours * 60) / step) * step
-  return `${Math.floor(total / 60)}:${pad2(total % 60)}`
+  if (hours < 7) {
+    const step = hours >= 1 ? 15 : 1
+    const total = Math.round((hours * 60) / step) * step
+    if (total < 420) return `${Math.floor(total / 60)}:${pad2(total % 60)}`
+  }
+  const h = Math.round(hours)
+  return h >= 100 ? '99h+' : `${h}h`
 }
 
 export function eta(soc: number, netA: number, capacityAh = CAPACITY_AH) {
@@ -38,7 +42,7 @@ export function eta(soc: number, netA: number, capacityAh = CAPACITY_AH) {
 function pendingEta(soc: number, netA: number) {
   if (netA > 0 && soc >= 99.5) return 'full'
   if (netA === 0) return null
-  return `–:–– to ${netA > 0 ? 'full' : 'empty'}`
+  return `-- to ${netA > 0 ? 'full' : 'empty'}`
 }
 
 export function powerView(r: SideReading, smoothing: Smoothing): PowerView {

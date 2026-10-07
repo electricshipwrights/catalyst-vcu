@@ -1,0 +1,35 @@
+[package]
+name = "vcu-display"
+description = "The VCU display: one Slint UI for the CoreMP135 LCD and the browser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vcu-core = { path = "../core" }
+# Every target (device, browser, host screenshots) uses the same software
+# renderer with glyphs pre-rendered at build time, so the browser shows the
+# device's exact pixels. Slint's std feature stays off: it pulls in fontconfig.
+slint = { version = "1.18.1", default-features = false, features = [
+  "compat-1-2",
+  "unsafe-single-threaded",
+  "libm",
+  "renderer-software",
+  "software-renderer-path",
+] }
+
+# Slint's core needs std on wasm32 (fontconfig, the reason to avoid it, is Linux-only).
+# The pre-rendered glyphs still take priority over its system-font lookup.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+slint = { version = "1.18.1", default-features = false, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libc = "0.2"
+png = "0.17"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+memmap2 = "0.9"
+socketcan = { version = "3", default-features = false }
+
+[build-dependencies]
+slint-build = "1.18.1"
