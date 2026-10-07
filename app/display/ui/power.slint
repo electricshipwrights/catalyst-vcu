@@ -21,9 +21,9 @@ export struct SideView {
 }
 
 global Scale {
-    out property <length> track-w: 128px;
+    out property <length> track-w: 126px;
     out property <length> port-x: 10px;
-    out property <length> stbd-x: 182px;
+    out property <length> stbd-x: 184px;
     out property <length> solar-y: 132px;
     out property <length> load-y: 162px;
 
@@ -40,7 +40,8 @@ global Scale {
 
 // A bar with up to two segments: [0, a) and [a, b). Port bars grow leftward.
 // With `mark-end`, a 2px line in the load color marks the end of the bar.
-// It has a 1px outline outside the bar in the dim color.
+// A low-contrast 1px border inside the track, under the bars, shows only
+// where the track is empty.
 component Track {
     in property <bool> port;
     in property <int> a;
@@ -50,20 +51,16 @@ component Track {
     in property <bool> mark-end;
     property <length> end: Scale.px(max(root.a, root.b));
     width: Scale.track-w;
-    height: 20px;
-
-    Rectangle {
-        x: -1px;
-        y: -1px;
-        width: root.width + 2px;
-        height: root.height + 2px;
-        border-width: 1px;
-        border-color: Palette.dim;
-    }
+    height: 18px;
 
     Rectangle {
         background: Palette.track;
         clip: true;
+
+        Rectangle {
+            border-width: 1px;
+            border-color: Palette.edge;
+        }
 
         Rectangle {
             y: 0;
@@ -241,19 +238,19 @@ export component PowerPage {
 
     Label {
         x: 10px;
-        y: 35px;
+        y: 31px;
         text: "PORT";
     }
 
     Label {
         x: 310px - self.width;
-        y: 35px;
+        y: 31px;
         text: "STBD";
     }
 
     Soc {
         x: 10px;
-        y: 43px;
+        y: 46px;
         width: 145px;
         height: 47px;
         port: true;
@@ -262,7 +259,7 @@ export component PowerPage {
 
     Soc {
         x: 165px;
-        y: 43px;
+        y: 46px;
         width: 145px;
         height: 47px;
         port: false;
@@ -271,7 +268,7 @@ export component PowerPage {
 
     Eta {
         x: 10px;
-        y: 91px;
+        y: 99px;
         width: 145px;
         height: 16px;
         port: true;
@@ -280,19 +277,11 @@ export component PowerPage {
 
     Eta {
         x: 165px;
-        y: 91px;
+        y: 99px;
         width: 145px;
         height: 16px;
         port: false;
         view: root.stbd;
-    }
-
-    Rectangle {
-        x: 10px;
-        y: 115px;
-        width: parent.width - 20px;
-        height: 1px;
-        background: Palette.track;
     }
 
     // Solar
@@ -336,7 +325,7 @@ export component PowerPage {
     // Row labels, centered between the tracks
     for label[i] in ["SOLAR", "LOAD"]: Label {
         x: 160px - self.width / 2;
-        y: (i == 0 ? Scale.solar-y : Scale.load-y) + 4px;
+        y: (i == 0 ? Scale.solar-y : Scale.load-y) + 3px;
         text: label;
     }
 

@@ -32,13 +32,14 @@ pub fn parse_smoothing(s: &str) -> Option<Smoothing> {
     }
 }
 
+pub const THEMES: [&str; 3] = ["dark", "light", "night"];
+
 pub fn parse_theme(s: &str) -> Option<i32> {
-    match s.trim() {
-        "dark" => Some(0),
-        "light" => Some(1),
-        "night" => Some(2),
-        _ => None,
-    }
+    THEMES.iter().position(|t| *t == s.trim()).map(|i| i as i32)
+}
+
+pub fn theme_name(theme: i32) -> &'static str {
+    THEMES.get(theme as usize).copied().unwrap_or(THEMES[0])
 }
 
 pub fn side_view(v: Option<PowerView>) -> SideView {

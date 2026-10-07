@@ -3,8 +3,8 @@ import { SCALE_MAX_A, powerView, type PowerView } from "./power";
 import { useSmoothing } from "./settings";
 import { useSide } from "./useSide";
 
-const TRACK_W = 128;
-const TRACK_X: Record<BusName, number> = { port: 10, stbd: 182 };
+const TRACK_W = 126;
+const TRACK_X: Record<BusName, number> = { port: 10, stbd: 184 };
 const SOLAR_Y = 132;
 const LOAD_Y = 162;
 
@@ -195,7 +195,6 @@ export function PowerPage() {
     <div className="page power">
       <SideHead side="port" v={port} />
       <SideHead side="stbd" v={stbd} />
-      <div className="rule" />
 
       <Track side="port" top={SOLAR_Y} segs={solarSegs(port)} />
       <Track side="stbd" top={SOLAR_Y} segs={solarSegs(stbd)} />

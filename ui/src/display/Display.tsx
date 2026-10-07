@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { onButton } from './buttons'
 import { PowerPage } from './PowerPage'
+import { SettingsPage } from './SettingsPage'
 import { useTheme } from './settings'
 import './display.css'
 
@@ -12,7 +13,7 @@ const Stub = () => <div className="page stub">tbd</div>
 const PAGES: Page[] = [
   { title: 'POWER', Component: PowerPage },
   { title: 'VIEW 2', Component: Stub },
-  { title: 'VIEW 3', Component: Stub },
+  { title: 'SETTINGS', Component: SettingsPage },
 ]
 
 export function Display() {

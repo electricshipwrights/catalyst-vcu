@@ -4,6 +4,7 @@
 
 import { Palette, Fonts, Label } from "theme.slint";
 import { PowerPage, SideView } from "power.slint";
+import { SettingsPage } from "settings.slint";
 
 export { Palette, SideView }
 
@@ -16,8 +17,10 @@ export component Display inherits Window {
     in property <SideView> port;
     in property <SideView> stbd;
     in-out property <int> page: 0;
+    // The theme was picked on the settings view (0 dark, 1 light, 2 night), for saving
+    callback theme-selected(int);
 
-    property <[string]> titles: ["POWER", "VIEW 2", "VIEW 3"];
+    property <[string]> titles: ["POWER", "VIEW 2", "SETTINGS"];
     property <length> bar-height: 21px;
 
     // Button A, B or C (0–2), from the hardware buttons or the bench
@@ -37,7 +40,7 @@ export component Display inherits Window {
             }
         }
 
-        if root.page > 0: Label {
+        if root.page == 1: Label {
             text: "tbd";
         }
     }
@@ -46,6 +49,12 @@ export component Display inherits Window {
     if root.page == 0: PowerPage {
         port: root.port;
         stbd: root.stbd;
+    }
+
+    if root.page == 2: SettingsPage {
+        theme-selected(theme) => {
+            root.theme-selected(theme);
+        }
     }
 
     // Top bar: each label sits under its button, centered in its third; the

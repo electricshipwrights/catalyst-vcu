@@ -43,7 +43,7 @@ Run these from `app/`, with the board plugged in over USB-C. The scripts find it
 - **Crashes:** nothing restarts the display if it exits; reboot or run `install.py` again.
 - **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
 - **Buses:** `can0` is port and `can1` is starboard.
-- **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `smoothing=instant`), which is re-read when it changes.
+- **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `smoothing=instant`), which is re-read when it changes. Picking a theme on the SETTINGS view (button C) saves it there, so it survives reboots.
 - **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
 
 To see live data without batteries, simulate the CAN buses:
@@ -54,7 +54,7 @@ To see live data without batteries, simulate the CAN buses:
 ../tools/cansim.py stop           # stop the replay, buses back to normal
 ```
 
-`cansim.py` replays the parity scenario (`core/tests/fixtures/parity.json`, about 3 minutes, looped), with port on `can0` and starboard on `can1` running 20 s behind. It covers discharging, solar, shore charging, a BMS dropout and devices going stale. It puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
+`cansim.py` replays the parity scenario (`core/tests/fixtures/parity.json`, 220 s, looped), with port on `can0` and starboard on `can1` running 20 s behind. It covers discharging, solar, shore charging, a BMS dropout and devices going stale, then ends with the bench's "Full throttle" preset (380 A propulsion) from 180 s. To change what it plays, edit the scenario in `ui/scripts/parity.ts`, run `pnpm parity` in `ui/`, then `cansim.py start` again. It puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
 
 On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,light,night,offline}.png` through the device's software renderer.
 
@@ -64,7 +64,7 @@ On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,l
 cargo test -p vcu-core
 ```
 
-`core/tests/parity.rs` replays a three-minute scenario generated from the prototype's TypeScript (`pnpm parity` in `ui/`). It checks every 10 Hz reading and power view against the TypeScript output. If you change the display logic in the prototype, regenerate the fixture and port the change.
+`core/tests/parity.rs` replays a 220-second scenario generated from the prototype's TypeScript (`pnpm parity` in `ui/`). It checks every 10 Hz reading and power view against the TypeScript output. If you change the display logic in the prototype, regenerate the fixture and port the change.
 
 ## Gotchas
 

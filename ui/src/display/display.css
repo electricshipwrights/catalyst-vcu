@@ -41,6 +41,7 @@
   --track: #24262b;
   --ink: #f5f5f6;
   --dim: #8a8d94;
+  --edge: #3a3d43;
   --solar: #e9a13b;
   --load: #a98bff;
   --house: #5d4c8f;
@@ -51,6 +52,7 @@
   --track: #e0e0e2;
   --ink: #0b0b0c;
   --dim: #6b6c70;
+  --edge: #c6c7ca;
   --solar: #e0a100;
   --load: #2b2d31;
   --house: #a4a7ad;
@@ -61,6 +63,7 @@
   --track: #1c0504;
   --ink: #ff4433;
   --dim: var(--ink);
+  --edge: #5c1610;
   --solar: #ff4433;
   --load: #d93a2b;
   --house: #9a2a1d;
@@ -85,6 +88,7 @@
 .row-label,
 .tick,
 .page.stub,
+.settings-label,
 .lcd-nav {
   font-family: var(--text);
   font-size: 10px;
@@ -114,11 +118,51 @@
   color: var(--dim);
 }
 
+/* Settings: large touch targets, the active one filled like the nav */
+.settings-label {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  color: var(--dim);
+}
+
+.theme-options {
+  position: absolute;
+  top: 28px;
+  left: 10px;
+  right: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.theme-options button {
+  all: unset;
+  box-sizing: border-box;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--edge);
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.theme-options button.on {
+  background: var(--track);
+  border-color: var(--track);
+  color: var(--ink);
+}
+
 /* Top bar: one label per hardware button (above the screen when the board
    is mounted upside down), each centered in its third */
 .lcd-nav {
   position: absolute;
   inset: 0 0 auto;
+  /* Above the power page, which is laid out on the whole screen */
+  z-index: 1;
   height: 21px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -148,7 +192,7 @@
 }
 
 .side-label {
-  top: 34px;
+  top: 30px;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -156,7 +200,7 @@
 }
 
 .soc {
-  top: 43px;
+  top: 46px;
   font-family: var(--display);
   font-weight: 600;
   font-size: 47px;
@@ -172,7 +216,7 @@
 }
 
 .eta {
-  top: 91px;
+  top: 99px;
   font-size: 13px;
   line-height: 16px;
   color: var(--dim);
@@ -222,14 +266,21 @@
 }
 
 .track {
-  height: 20px;
+  height: 18px;
   background: var(--track);
   overflow: hidden;
 }
 
-/* A 1px outline, outside the bar */
-.track {
-  outline: 1px solid var(--dim);
+/* A low-contrast 1px border inside the track, under the bars, so it only
+   shows where the track is empty */
+.track::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  border: 1px solid var(--edge);
 }
 
 .track-port::after {
@@ -267,10 +318,10 @@
 }
 
 .row-label {
-  left: 138px;
-  width: 44px;
-  height: 20px;
-  padding-top: 3px;
+  left: 136px;
+  width: 48px;
+  height: 18px;
+  padding-top: 2px;
   text-align: center;
   color: var(--dim);
 }
@@ -283,13 +334,6 @@
 .tick {
   position: absolute;
   color: var(--dim);
-}
-
-.rule {
-  top: 115px;
-  left: 10px;
-  right: 10px;
-  border-top: 1px solid var(--track);
 }
 
 .footer {

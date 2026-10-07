@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime};
 use slint::platform::software_renderer::{MinimalSoftwareWindow, Rgb565Pixel};
 use slint::{ComponentHandle, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::Smoothing;
-use vcu_display::{Display, Palette, Sides, drive, parse_smoothing, parse_theme};
+use vcu_display::{Display, Palette, Sides, drive, parse_smoothing, parse_theme, theme_name};
 
 use crate::platform::{now_ms, slint_error};
 
@@ -37,9 +37,33 @@ fn env_or(name: &str, default: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| default.into())
 }
 
+fn settings_path() -> String {
+    env_or("VCU_SETTINGS", "/etc/vcu/display.conf")
+}
+
+/// Sets `key=value` in the settings file, keeping its other lines.
+fn save_setting(key: &str, value: &str) {
+    let path = settings_path();
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut lines: Vec<String> = text
+        .lines()
+        .filter(|l| l.split_once('=').map(|(k, _)| k) != Some(key))
+        .map(str::to_string)
+        .collect();
+    lines.push(format!("{key}={value}"));
+    let saved = std::path::Path::new(&path)
+        .parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|_| std::fs::write(&path, lines.join("\n") + "\n"));
+    match saved {
+        Ok(()) => eprintln!("settings: saved {key}={value} to {path}"),
+        Err(e) => eprintln!("settings: can't save {path}: {e}"),
+    }
+}
+
 /// Applies the settings file whenever its modification time changes.
 fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
-    let path = env_or("VCU_SETTINGS", "/etc/vcu/display.conf");
+    let path = settings_path();
     let seen: Cell<Option<SystemTime>> = Cell::new(None);
     let weak = ui.as_weak();
     let apply = move || {
@@ -107,6 +131,7 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, ui: &Display) -> Result<(), Box<d
     let sides = Rc::new(RefCell::new(Sides::default()));
     let smoothing = Rc::new(Cell::new(Smoothing::default()));
     let _settings = watch_settings(ui, smoothing.clone());
+    ui.on_theme_selected(|theme| save_setting("theme", theme_name(theme)));
     let _driver = drive(ui, sides.clone(), smoothing, now_ms);
     let mut port = can::Bus::open(env_or("VCU_PORT_CAN", "can0"));
     let mut stbd = can::Bus::open(env_or("VCU_STBD_CAN", "can1"));

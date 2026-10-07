@@ -19,7 +19,9 @@ use vcu_display::slint::platform::software_renderer::{
 use vcu_display::slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
 use vcu_display::slint::{self, ComponentHandle, LogicalPosition, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::Smoothing;
-use vcu_display::{Display, HEIGHT, Palette, Sides, WIDTH, drive, parse_smoothing, parse_theme};
+use vcu_display::{
+    Display, HEIGHT, Palette, Sides, WIDTH, drive, parse_smoothing, parse_theme, theme_name,
+};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData, PointerEvent};
@@ -130,6 +132,21 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
     let timer = Timer::default();
     timer.start(TimerMode::Repeated, Duration::from_millis(250), apply);
     timer
+}
+
+/// Saves a theme picked on the settings view where the bench keeps it, and tells
+/// the React side (which only hears other tabs' storage events by itself).
+fn save_theme(theme: i32) {
+    let window = window();
+    let Ok(Some(storage)) = window.local_storage() else {
+        return;
+    };
+    let _ = storage.set_item("vcu.theme", theme_name(theme));
+    let init = web_sys::StorageEventInit::new();
+    init.set_key(Some("vcu.theme"));
+    if let Ok(event) = web_sys::StorageEvent::new_with_event_init_dict("storage", &init) {
+        let _ = window.dispatch_event(&event);
+    }
 }
 
 thread_local! {
@@ -261,6 +278,7 @@ pub fn start(canvas: HtmlCanvasElement) -> Result<(), JsValue> {
     let sides = Rc::new(RefCell::new(Sides::default()));
     let smoothing = Rc::new(Cell::new(Smoothing::default()));
     let settings = watch_settings(&ui, smoothing.clone());
+    ui.on_theme_selected(save_theme);
     let driver = drive(&ui, sides.clone(), smoothing, now_ms);
     connect(sides);
     ui.show().map_err(|e| err(&e))?;
