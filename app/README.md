@@ -30,12 +30,21 @@ pnpm dev            # bench; Slint is the default renderer (toggle "renderer" fo
 Run these from `app/`, with the board plugged in over USB-C. The scripts find its serial console (`/dev/cu.usbmodem*`) themselves.
 
 ```
-cargo build --release -p vcu-display --target armv7-unknown-linux-musleabihf
 ../tools/serial.py root root      # log in; once per boot
-../tools/upload.py target/armv7-unknown-linux-musleabihf/release/vcu-display /tmp/vcu-display
-../tools/serial.py 'kill -STOP $(pidof core135_start_ui); /tmp/vcu-display > /tmp/display.log 2>&1 &'
+../tools/install.py               # build, upload if changed, start now and at every boot
+../tools/install.py --status      # what's installed and running
 ../tools/grab.py screen.png       # optional: save what the LCD shows as a PNG
 ```
+
+`install.py` builds the static ARM binary (about 1.9 MB) and copies it to `/usr/local/bin/vcu-display`, which persists across reboots. It only uploads when the build has changed, which takes about 30 s. With Ethernet connected you could use `scp` and `ssh` instead.
+
+- **Boot:** the board starts its UI from `/etc/rc.load`, which also loads the LCD driver, brings up `can0`/`can1` at 250 kbit/s and puts USB in device mode for the serial console. `install.py` keeps all of that and swaps only the line that starts the vendor UI. The original is kept in `/etc/rc.load.orig`, and `install.py --uninstall` puts it back and restores the vendor UI.
+- **Log:** the display logs to `/var/log/vcu-display.log`.
+- **Crashes:** nothing restarts the display if it exits; reboot or run `install.py` again.
+- **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
+- **Buses:** `can0` is port and `can1` is starboard.
+- **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `smoothing=instant`), which is re-read when it changes.
+- **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
 
 To see live data without batteries, simulate the CAN buses:
 
@@ -45,17 +54,7 @@ To see live data without batteries, simulate the CAN buses:
 ../tools/cansim.py stop           # stop the replay, buses back to normal
 ```
 
-`cansim.py` replays the parity scenario (`core/tests/fixtures/parity.json`, about 3 minutes, looped), with port on `can0` and starboard on `can1` running 20 s behind. It covers discharging, solar, shore charging, a BMS dropout and devices going stale. It puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it.
-
-The build is a static ARM binary of about 1.9 MB, so nothing needs installing on the board. The upload takes about 25 s and is checked with md5. With Ethernet connected you can use `scp` and `ssh` instead.
-
-- **Vendor UI:** `core135_start_ui` also draws on the LCD, so the run command pauses it with `kill -STOP`.
-- **Stopping:** `../tools/serial.py 'kill $(pidof vcu-display); kill -CONT $(pidof core135_start_ui)'` stops the display and resumes the vendor UI. A reboot does the same.
-- **Not installed:** nothing is set up to start at boot yet; `/tmp` is cleared on reboot.
-- **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
-- **Buses:** `can0` is port and `can1` is starboard.
-- **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `smoothing=instant`), which is re-read when it changes.
-- **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
+`cansim.py` replays the parity scenario (`core/tests/fixtures/parity.json`, about 3 minutes, looped), with port on `can0` and starboard on `can1` running 20 s behind. It covers discharging, solar, shore charging, a BMS dropout and devices going stale. It puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
 
 On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,light,night,offline}.png` through the device's software renderer.
 
