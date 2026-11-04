@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { BusName } from '../../shared/bus'
-import { onFrames } from '../bus'
+import { sideBuses } from '../../shared/gateway'
+import { onGatewayFrames } from '../bus'
 import { emptyRaw, ingest, read, type Currents, type Live } from './sideState'
 import { EtaHold } from './etaHold'
 import { StepFilter } from './stepFilter'
@@ -9,15 +10,17 @@ export type { Currents }
 
 export type SideReading = { online: false } | (Live & { smooth: Currents; etaNetA: number | null })
 
-export function useSide(bus: BusName, hz = 10): SideReading {
+// One side's reading, from the gateway buses that concern it (GATEWAY.md)
+export function useSide(side: BusName, hz = 10): SideReading {
   const [reading, setReading] = useState<SideReading>({ online: false })
   useEffect(() => {
-    const raw = emptyRaw()
-    const off = onFrames(bus, (frames) => {
+    const raw = emptyRaw(side)
+    const buses = sideBuses(side)
+    const off = onGatewayFrames((frames) => {
       const at = performance.now()
-      for (const f of frames) ingest(raw, f, at)
+      for (const f of frames) if (buses.has(f.bus)) ingest(raw, f, at)
     })
-    const filters = { solarA: new StepFilter(), chargerA: new StepFilter(), propulsionA: new StepFilter(), houseA: new StepFilter() }
+    const filters = { solarA: new StepFilter(), chargerA: new StepFilter(), propulsionA: new StepFilter(), houseA: new StepFilter(), heaterA: new StepFilter(), inverterA: new StepFilter() }
     const etaHold = new EtaHold()
     const timer = setInterval(() => {
       const now = performance.now()
@@ -32,6 +35,8 @@ export function useSide(bus: BusName, hz = 10): SideReading {
         chargerA: filters.chargerA.push(now, r.chargerA),
         propulsionA: filters.propulsionA.push(now, r.propulsionA),
         houseA: filters.houseA.push(now, r.houseA) ?? r.houseA,
+        heaterA: filters.heaterA.push(now, r.heaterA),
+        inverterA: filters.inverterA.push(now, r.inverterA),
       }
       const smoothNetA = (smooth.solarA ?? 0) + (smooth.chargerA ?? 0) - (smooth.propulsionA ?? 0) - smooth.houseA
       setReading({ ...r, smooth, etaNetA: etaHold.push(now, smoothNetA) })
@@ -40,6 +45,6 @@ export function useSide(bus: BusName, hz = 10): SideReading {
       off()
       clearInterval(timer)
     }
-  }, [bus, hz])
+  }, [side, hz])
   return reading
 }

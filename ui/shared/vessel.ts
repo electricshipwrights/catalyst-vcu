@@ -39,6 +39,9 @@ export const VESSEL = {
   // per motor was about 7.5 knots.)
   cruiseA: 40,
   houseMaxA: 32,
+  // Assumed, to revisit: an electric heater and an inverter (cooking) per side
+  heaterMaxA: 40,
+  inverterMaxA: 60,
   // The BMS limits vary with SOC and temperature; these are from the Oct 6 log
   bmsDclA: 492,
   bmsCclA: 173,

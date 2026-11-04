@@ -1,5 +1,5 @@
 import { toHex, type WireFrame } from '../shared/can'
-import type { SimParams, SimPatch, SimTruth } from '../shared/bus'
+import type { BusName, SimParams, SimPatch, SimTruth } from '../shared/bus'
 import {
   MOTOR_STATUS,
   ORION_CELL,
@@ -11,7 +11,9 @@ import {
   ELCON_FLAGS,
   ELCON_STATUS,
   PGN_BATTERY_STATUS,
-  SIM_MPPT_SOURCE,
+  MPPT_SOURCE_LIST,
+  HEATER_SOURCES,
+  INVERTER_SOURCES,
   encodeBatteryStatus,
   encodeElconCommand,
   encodeElconStatus,
@@ -51,9 +53,11 @@ function ocv(soc: number) {
 export class BatterySim {
   params: SimParams
   soc: number
-  private solar: number
+  private panel: number[]
   private propulsion: number
-  private house: number
+  private house: number // base load
+  private heater: number
+  private inverter: number
   private charger = 0
   private packA = 0
   private offsets = ORION_CELL_IDS.map(() => noise(0.006))
@@ -61,15 +65,23 @@ export class BatterySim {
   speed = 1
   private last = performance.now()
   private sid = 0
+  // Report the MPPTs at once after an allocation change, not up to a second later
+  private mpptsChanged = false
   private cell = 0
 
-  constructor(params: SimParams, soc: number) {
+  constructor(
+    readonly side: BusName,
+    params: SimParams,
+    soc: number,
+  ) {
     this.params = params
     this.soc = soc
-    this.solar = params.solarA
+    this.panel = [...params.panelA]
     this.propulsion = params.propulsionA
     this.house = params.houseA
-    this.packA = this.propulsionActual + this.house - this.solarActual
+    this.heater = params.heaterA
+    this.inverter = params.inverterA
+    this.packA = this.propulsionActual + this.houseTotal - this.solarActual
   }
 
   get chargerOn() {
@@ -82,6 +94,7 @@ export class BatterySim {
 
   patch({ soc, ...rest }: SimPatch) {
     if (soc != null) this.soc = clamp(soc, 0, 100)
+    if (rest.mppts && rest.mppts.join() !== this.params.mppts.join()) this.mpptsChanged = true
     this.params = { ...this.params, ...rest }
   }
 
@@ -110,11 +123,27 @@ export class BatterySim {
   }
 
   get propulsionActual() {
-    return clamp(this.propulsion, 0, Math.max(0, this.dcl + this.solar + this.charger - this.house))
+    return clamp(this.propulsion, 0, Math.max(0, this.dcl + this.solarAvailable + this.charger - this.houseTotal))
+  }
+
+  get houseTotal() {
+    return this.house + this.heater + this.inverter
+  }
+
+  // What this side's MPPTs' panels give now; reallocating one moves its
+  // current at once
+  get solarAvailable() {
+    return this.params.mppts.reduce((sum, i) => sum + this.panel[i], 0)
   }
 
   get solarActual() {
-    return Math.max(0, Math.min(this.solar, this.propulsionActual + this.house + this.ccl - this.charger))
+    return Math.max(0, Math.min(this.solarAvailable, this.propulsionActual + this.houseTotal + this.ccl - this.charger))
+  }
+
+  // Each MPPT's share, with any CCL curtailment spread across them
+  get mpptActual() {
+    const f = this.solarAvailable > 0 ? this.solarActual / this.solarAvailable : 0
+    return this.panel.map((a, i) => (this.params.mppts.includes(i) ? a * f : 0))
   }
 
   cellV(i: number) {
@@ -131,7 +160,9 @@ export class BatterySim {
       soc: this.soc,
       packV: this.packV,
       packA: this.packA,
+      solarAvailableA: this.solarAvailable,
       solarActualA: this.solarActual,
+      mpptActualA: this.mpptActual,
       propulsionActualA: this.propulsionActual,
       chargerActualA: this.charger,
       ccl: this.ccl,
@@ -147,15 +178,36 @@ export class BatterySim {
     const send = (id: number, ext: boolean, data: Uint8Array) => emit({ id, ext, data: toHex(data), t: Date.now() })
     const every = (ms: number, fn: () => void) => this.timers.push(setInterval(fn, ms))
 
+    const reportMppts = () => {
+      if (!this.params.mppt) return
+      const actual = this.mpptActual
+      for (const i of this.params.mppts) {
+        send(n2kId(PGN_BATTERY_STATUS, MPPT_SOURCE_LIST[i]), true, encodeBatteryStatus({
+          instance: i,
+          v: this.packV,
+          a: actual[i] + noise(0.3),
+          tempC: null,
+          sid: this.sid % 253,
+        }))
+      }
+      this.sid++
+    }
+
     every(8, () => {
       this.step()
-      if (!this.params.bms) return
-      send(ORION_PACK, false, encodeOrionPack({
-        packA: this.packA + noise(0.4),
-        packV: this.packV,
-        soc: this.soc,
-        relays: ORION_RELAYS_DEFAULT,
-      }))
+      if (this.params.bms) {
+        send(ORION_PACK, false, encodeOrionPack({
+          packA: this.packA + noise(0.4),
+          packV: this.packV,
+          soc: this.soc,
+          relays: ORION_RELAYS_DEFAULT,
+        }))
+      }
+      // After the pack frame, so the display sees the two agree
+      if (this.mpptsChanged) {
+        this.mpptsChanged = false
+        reportMppts()
+      }
     })
     every(103, () => {
       if (!this.params.bms) return
@@ -176,14 +228,9 @@ export class BatterySim {
           ocv: ocv(this.soc) + this.offsets[i],
         }))
       }
-      if (this.params.mppt) {
-        send(n2kId(PGN_BATTERY_STATUS, SIM_MPPT_SOURCE), true, encodeBatteryStatus({
-          instance: 0,
-          v: this.packV,
-          a: this.solarActual + noise(0.3),
-          tempC: null,
-          sid: this.sid++ % 253,
-        }))
+      reportMppts()
+      for (const [src, a] of [[HEATER_SOURCES[this.side], this.heater], [INVERTER_SOURCES[this.side], this.inverter]]) {
+        send(n2kId(PGN_BATTERY_STATUS, src), true, encodeBatteryStatus({ instance: 0, v: this.packV, a: a + (a > 0 ? noise(0.2) : 0), tempC: null, sid: 0 }))
       }
     })
     every(1000, () => {
@@ -196,7 +243,7 @@ export class BatterySim {
       }
     })
     every(50, () => {
-      if (this.params.motor) send(MOTOR_STATUS, false, encodeMotorStatus({ a: this.propulsionActual + noise(0.5) }))
+      send(MOTOR_STATUS, false, encodeMotorStatus({ a: this.propulsionActual + noise(0.5) }))
     })
   }
 
@@ -210,11 +257,13 @@ export class BatterySim {
     const dt = Math.min(0.1, (now - this.last) / 1000) * this.speed
     this.last = now
     const k = (tau: number) => 1 - Math.exp(-dt / tau)
-    this.solar += (this.params.solarA - this.solar) * k(0.4)
+    this.panel = this.panel.map((a, i) => a + ((this.params.panelA[i] ?? 0) - a) * k(0.4))
     this.propulsion += (this.params.propulsionA - this.propulsion) * k(0.6)
     this.house += (this.params.houseA - this.house) * k(0.3)
+    this.heater += (this.params.heaterA - this.heater) * k(0.3)
+    this.inverter += (this.params.inverterA - this.inverter) * k(0.3)
     this.charger = this.chargerOn ? this.charger + (this.chargerTarget - this.charger) * k(3) : 0
-    this.packA = this.propulsionActual + this.house - this.solarActual - this.charger
+    this.packA = this.propulsionActual + this.houseTotal - this.solarActual - this.charger
     this.soc = clamp(this.soc - (this.packA * dt * 100) / 3600 / this.params.capacityAh, 0, 100)
   }
 }

@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react'
-import { formatId, toHex, type Frame } from '../../shared/can'
-import type { BusName } from '../../shared/bus'
-import { onFrames } from '../bus'
+import { formatId, toHex } from '../../shared/can'
+import type { GatewayFrame } from '../../shared/gateway'
+import { onGatewayFrames } from '../bus'
 import { describe } from './describe'
 
-type Entry = { frame: Frame; count: number; hz: number; seen: number }
+type Entry = { frame: GatewayFrame; count: number; hz: number; seen: number }
 type Row = { key: string; id: string; hz: number; data: string; name: string; value: string }
 
 const WINDOW_MS = 500
 
-export function Traffic({ bus }: { bus: BusName }) {
+// The frames on one gateway bus, one row per ID
+export function Traffic({ bus }: { bus: number }) {
   const [rows, setRows] = useState<Row[]>([])
 
   useEffect(() => {
     const entries = new Map<string, Entry>()
-    const off = onFrames(bus, (frames) => {
+    const off = onGatewayFrames((frames) => {
       const now = performance.now()
       for (const f of frames) {
+        if (f.bus !== bus) continue
         const key = `${f.ext ? 'x' : 's'}${f.id}`
         const e = entries.get(key) ?? { frame: f, count: 0, hz: 0, seen: now }
         e.frame = f

@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
-import { BatteryBox } from './bench/BatteryBox'
+import { useRef, useState } from 'react'
+import { GatewayPanel } from './bench/Gateway'
 import { Harness } from './bench/Harness'
+import { NmeaBox } from './bench/Nmea'
 import { Presets } from './bench/Presets'
+import { SideColumn } from './bench/Side'
 import { Specs } from './bench/Specs'
 import { RendererToggle, SmoothingToggle, SpeedToggle, ThemeToggle } from './bench/Toggles'
 import { useServerStatus } from './bus'
@@ -43,15 +45,14 @@ export function App() {
   const [zoom, setZoom] = useState(2)
   const stageRef = useRef<HTMLDivElement>(null)
   const bezelRef = useRef<HTMLDivElement>(null)
-  const portRef = useRef<HTMLDivElement>(null)
-  const stbdRef = useRef<HTMLDivElement>(null)
-  const boxRefs = useMemo(() => ({ port: portRef, stbd: stbdRef }), [])
+  const gatewayRef = useRef<HTMLDivElement>(null)
 
   if (displayOnly) return <Screen />
 
   const port = status?.buses.find((b) => b.bus === 'port')
   const stbd = status?.buses.find((b) => b.bus === 'stbd')
   const logs = status?.logs ?? []
+  const fps = status?.gateway.fps ?? {}
 
   return (
     <main className="bench">
@@ -78,15 +79,10 @@ export function App() {
         </div>
       </div>
       <div className="stage" ref={stageRef}>
-        <Harness
-          stage={stageRef}
-          display={bezelRef}
-          boxes={boxRefs}
-          live={{ port: !!port?.fps, stbd: !!stbd?.fps }}
-        />
-        <div className="box-slot" ref={portRef}>
-          <BatteryBox bus="port" status={port} logs={logs} />
-        </div>
+        <Harness stage={stageRef} display={bezelRef} gateway={gatewayRef} fps={fps} />
+        <SideColumn side="port" status={port} fps={fps} logs={logs}>
+          <NmeaBox buses={status?.buses} fps={fps} />
+        </SideColumn>
         <div className="board-col">
           <div className="bezel" ref={bezelRef}>
             {/* The board is mounted upside down, so its buttons are above the screen */}
@@ -99,11 +95,12 @@ export function App() {
             </div>
             <Screen zoom={zoom} />
           </div>
+          <div className="gateway-slot" ref={gatewayRef}>
+            <GatewayPanel status={status?.gateway} />
+          </div>
           <Specs />
         </div>
-        <div className="box-slot" ref={stbdRef}>
-          <BatteryBox bus="stbd" status={stbd} logs={logs} />
-        </div>
+        <SideColumn side="stbd" status={stbd} fps={fps} logs={logs} />
       </div>
     </main>
   )

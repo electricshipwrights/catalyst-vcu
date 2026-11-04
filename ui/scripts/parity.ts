@@ -94,8 +94,8 @@ for (let s = 0; s * 1000 < END_MS; s++) {
 frames.sort((a, b) => a.at - b.at)
 
 // Mirrors the interval body of useSide()
-const raw = emptyRaw()
-const filters = { solarA: new StepFilter(), chargerA: new StepFilter(), propulsionA: new StepFilter(), houseA: new StepFilter() }
+const raw = emptyRaw('port')
+const filters = { solarA: new StepFilter(), chargerA: new StepFilter(), propulsionA: new StepFilter(), houseA: new StepFilter(), heaterA: new StepFilter(), inverterA: new StepFilter() }
 const etaHold = new EtaHold()
 
 function tick(now: number): SideReading {
@@ -110,6 +110,8 @@ function tick(now: number): SideReading {
     chargerA: filters.chargerA.push(now, r.chargerA),
     propulsionA: filters.propulsionA.push(now, r.propulsionA),
     houseA: filters.houseA.push(now, r.houseA) ?? r.houseA,
+    heaterA: filters.heaterA.push(now, r.heaterA),
+    inverterA: filters.inverterA.push(now, r.inverterA),
   }
   const smoothNetA = (smooth.solarA ?? 0) + (smooth.chargerA ?? 0) - (smooth.propulsionA ?? 0) - smooth.houseA
   return { ...r, smooth, etaNetA: etaHold.push(now, smoothNetA) }

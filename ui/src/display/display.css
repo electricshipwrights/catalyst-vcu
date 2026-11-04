@@ -44,7 +44,10 @@
   --edge: #3a3d43;
   --solar: #e9a13b;
   --load: #a98bff;
-  --house: #5d4c8f;
+  --base: #2f6b4a;
+  --heater: #3f8f62;
+  --inverter: #57b880;
+  --shore: #5fb3e0;
 }
 
 .lcd[data-theme='light'] {
@@ -55,7 +58,10 @@
   --edge: #c6c7ca;
   --solar: #e0a100;
   --load: #2b2d31;
-  --house: #a4a7ad;
+  --base: #8cc4a2;
+  --heater: #4f9a6c;
+  --inverter: #2a7449;
+  --shore: #1f7fb0;
 }
 
 .lcd[data-theme='night'] {
@@ -66,7 +72,10 @@
   --edge: #5c1610;
   --solar: #ff4433;
   --load: #d93a2b;
-  --house: #9a2a1d;
+  --base: #5c1a12;
+  --heater: #7c2317;
+  --inverter: #9e2c1f;
+  --shore: #ff7a66;
 }
 
 .lcd {
@@ -266,7 +275,7 @@
 }
 
 .track {
-  height: 12px;
+  height: 9px;
   background: var(--track);
   overflow: hidden;
 }
@@ -305,29 +314,56 @@
   background: var(--load);
 }
 
-.seg-house {
-  background: var(--house);
+/* The house load from the inside out, in its own hue (night stays red) */
+.seg-base {
+  background: var(--base);
 }
 
-.seg-end {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--load);
+.seg-heater {
+  background: var(--heater);
+}
+
+.seg-inverter {
+  background: var(--inverter);
+}
+
+.seg-shore {
+  background: var(--shore);
+}
+
+/* The plug over the shore slot */
+.slot-num .shore-icon {
+  height: 9px;
+  width: auto;
+  fill: currentColor;
+}
+
+/* Solar per MPPT: a slot allocated to the other side is just an outline */
+.slot.away {
+  height: 9px;
+  box-sizing: border-box;
+  border: 1px dashed var(--edge);
+}
+
+.slot-num {
+  text-align: center;
+}
+
+.slot-num.away {
+  color: var(--edge);
 }
 
 .row-label {
   left: 134px;
   width: 52px;
-  height: 12px;
-  line-height: 12px;
+  height: 9px;
+  line-height: 9px;
   text-align: center;
   color: var(--dim);
 }
 
 .ticks {
-  top: 187px;
+  top: 190px;
   left: 0;
 }
 

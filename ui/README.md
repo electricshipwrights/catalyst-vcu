@@ -1,6 +1,6 @@
 # VCU display bench
 
-A prototyping bench for the electric boat display: one 320×240 screen, plus port and starboard batteries simulated on separate CAN buses.
+A prototyping bench for the electric boat display: one 320×240 screen, port and starboard batteries simulated, and the gateway (a PCAN router, `../GATEWAY.md`) that puts their frames on CAN1–6 and sends them to the display.
 
 ```
 pnpm install
@@ -12,15 +12,18 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 ## How it fits together
 
 ```
- PORT box ──can0──┐                       ┌──can1── STBD box
- (sim | replay |  │   server/index.ts     │  (sim | replay |
-  candump | off)  └─► bus server (ws) ◄───┘   candump | off)
-                          │ raw frames only
-                          ▼
-                 src/display  (decodes bytes → UI)
+ PORT: sim | replay |                              STBD: sim | replay |
+       candump | off                                   candump | off
+  BMS, charger ──CAN3──┐                       ┌──CAN2── BMS, charger
+  motor        ──CAN4──┼─► gateway stand-in ◄──┴──CAN5── motor
+  NMEA 2000    ──CAN6──┘   server/gateway.ts
+  (MPPTs, both sides)
+                                   │ cannelloni packets per bus (or the real
+                                   ▼ router's, over UDP)
+                  src/display  (routes by bus, decodes bytes → UI)
 ```
 
-- **The display only sees raw CAN frames.** It never reads sim state. Its decoding in `src/display/useSide.ts` is the same code that will run against the real buses.
+- **The display only sees raw CAN frames.** It never reads sim state. `src/display/useSide.ts` picks a side's frames by gateway bus; `shared/gateway.ts` holds the bus mapping and the packet codec.
 - `shared/protocol.ts` encodes and decodes every message. The simulator, the display, and the bench traffic tables all use it.
 - `src/display/power.ts` holds the pure view math: in/out/net and time to empty or full. Port it to C/LVGL if needed.
 
@@ -28,27 +31,41 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 
 The bench can show either this React display or the Slint port in `../app`, which is what runs on the device. The Slint view shows the LCD's exact pixels. It shows Slint by default; switch with **renderer** in the toolbar. To build the Slint version, run `pnpm build:wasm` (setup is in `../app/README.md`). `pnpm parity` regenerates the fixture that keeps the Rust logic in step with `src/display`.
 
+Slint hasn't caught up with the gateway yet: it still reads the older per-side stream, and shows the older power page (one solar bar; load as propulsion + house) rather than the input slots and the house and motor bars.
+
 ## Messages
 
-| Device | ID | Content |
-|---|---|---|
-| Orion BMS 2 | `0x6B0` @ 125 Hz | pack current (0.1 A, signed BE, + = discharge), voltage (0.1 V), SOC (0.5 %), relay flags, checksum |
-| Orion BMS 2 | `0x6B1` @ 10 Hz | DCL, CCL (A), high/low temp (°C), checksum |
-| Orion BMS 2 | `0x036` @ 1 Hz | cell broadcast: id, voltage, resistance, open-circuit voltage |
-| Victron MPPT | `0x19F214xx` | NMEA 2000 PGN 127508 Battery Status (LE): charge current into the battery = **solar in** |
-| Motor controller | `0x700` | **placeholder**: DC current (0.1 A, signed BE) = propulsion. Swap in the real controller's frame |
+| Device | Bus | ID | Content |
+|---|---|---|---|
+| Orion BMS 2 | CAN3, CAN2 | `0x6B0` @ 125 Hz | pack current (0.1 A, signed BE, + = discharge), voltage (0.1 V), SOC (0.5 %), relay flags, checksum |
+| Orion BMS 2 | CAN3, CAN2 | `0x6B1` @ 10 Hz | DCL, CCL (A), high/low temp (°C), checksum |
+| Orion BMS 2 | CAN3, CAN2 | `0x036` @ 1 Hz | cell broadcast: id, voltage, resistance, open-circuit voltage |
+| Orion BMS 2 | CAN3, CAN2 | `0x1806E5F4` @ 1 Hz | Elcon command: max voltage and current (= CCL) |
+| Elcon charger | CAN3, CAN2 (assumed) | `0x18FF50E5` @ 1 Hz | charging voltage, current and status flags; silent without shore power |
+| Victron MPPT 1–4 | CAN6 | `0x19F21422`–`25` @ 1 Hz | NMEA 2000 PGN 127508 Battery Status (LE) from sources 0x22–0x25: charge current into the battery = **solar in** |
+| Inverter, heater | CAN6 (assumed) | `0x19F21430`–`33` @ 1 Hz | **placeholder**: PGN 127508 from 0x30/0x31 (inverter, port/stbd) and 0x32/0x33 (heater), current = what each draws |
+| Motor controller | CAN4, CAN5 | `0x700` @ 20 Hz | **placeholder**: DC current (0.1 A, signed BE) = propulsion. Swap in the real controller's frame |
+| Bench | bench (255) | `0x7F0` @ 1 Hz | stand-in MPPT allocation: one byte per MPPT (0 none, 1 port, 2 starboard) |
 
 Orion checksum: `(id + 8 + sum(bytes 0..6)) & 0xFF`. This was verified against all frames in `../2026-07-10-16-02-18.txt`.
 
-Derived values: `load out = solar in + pack current`. House (gray bar) = load out − propulsion. Net = in − out.
+Derived values: `load out = solar + charger + pack current`. House = load out − propulsion, sampled when one of the side's MPPTs reports so the two agree; base = house − heater − inverter. The house bar stacks base, heater and inverter from the inner end; the motor has its own bar. Net = in − out.
 
 ## Sources
 
-Pick a source per bus from the bench UI, or set it at startup:
+Pick a source per side from the bench UI, or set it at startup:
 
 ```
 pnpm bus --stbd=replay:../2026-07-10-16-02-18.txt
 pnpm bus --port=candump:can0 --stbd=candump:can1     # on the CoreMP135 / any SocketCAN host
+```
+
+The gateway panel switches between the simulation and the real router (it listens on UDP 20001–20006). To test the board without the router, send the simulated packets out as UDP too:
+
+```
+pnpm bus --gateway=router                            # start listening for the router
+pnpm bus --udp                                       # also broadcast the sim as the router would
+pnpm bus --udp=192.168.1.255                         # or to one subnet or address
 ```
 
 Replay reads SLCAN logs (`t6B0805420…` with a trailing ms stamp) from `logs/` or the parent folder.

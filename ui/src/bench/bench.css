@@ -50,7 +50,7 @@ button {
   width: 100%;
   display: grid;
   grid-template-columns: 340px minmax(max-content, 1fr) 340px;
-  gap: 24px;
+  gap: 24px 56px; /* room between columns for the wires */
   align-items: start;
 }
 
@@ -61,10 +61,13 @@ button {
   align-items: center;
 }
 
-.box-slot {
+/* A side's source, then a box per bus */
+.side-col {
   position: relative;
   z-index: 1;
-  margin-top: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 @media (max-width: 1100px) {
@@ -75,9 +78,6 @@ button {
   }
   .stage > .board-col {
     order: -1;
-  }
-  .box-slot {
-    margin-top: 0;
   }
   .harness {
     display: none;
@@ -103,7 +103,6 @@ button {
 .box h2 {
   margin: 0;
   font-size: 13px;
-  letter-spacing: 0.12em;
 }
 
 .sub,
@@ -308,6 +307,11 @@ button {
   stroke: var(--can-l);
 }
 
+.harness .eth path {
+  stroke: var(--on-bg);
+  stroke-width: 3;
+}
+
 .harness .live path {
   opacity: 1;
   stroke-dasharray: 6 3;
@@ -421,4 +425,90 @@ button {
 
 .hw-buttons button:active {
   background: #45474d;
+}
+
+/* The gateway sits below the display, with room for the Ethernet link */
+.gateway-slot {
+  position: relative;
+  z-index: 1;
+  width: 340px;
+  margin-top: 48px;
+}
+
+.gw-buses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--panel-rule);
+}
+
+.gw-buses button {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 6ch 1fr auto;
+  gap: 8px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--panel-rule);
+  cursor: pointer;
+}
+
+.gw-buses button[aria-pressed='true'] {
+  background: var(--panel-ink);
+  color: var(--panel);
+}
+
+.gw-name,
+.gw-fps {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.gw-roles {
+  color: var(--panel-ink-2);
+}
+
+.gw-buses button[aria-pressed='true'] .gw-roles {
+  color: inherit;
+}
+
+.split {
+  align-items: center;
+  font-size: 12px;
+  color: var(--panel-ink-2);
+}
+
+.split span {
+  margin-right: 4px;
+}
+
+.nmea-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.device {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.device + .device {
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-rule);
+}
+
+.device h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--panel-ink-2);
+}
+
+.truth .span {
+  grid-column: 1 / -1;
 }

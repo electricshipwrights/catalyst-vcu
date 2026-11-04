@@ -4,8 +4,9 @@ The battery and power display for a twin-electric boat, built around an M5Stack 
 
 | Folder | What's in it |
 |---|---|
-| `ui/` | The bench: a browser setup with simulated port and starboard batteries on separate CAN buses, plus the React prototype of the display. See `ui/README.md`. |
+| `ui/` | The bench: simulated port and starboard sides, a stand-in for the CAN gateway, and the React prototype of the display. See `ui/README.md`. |
 | `app/` | The display in Rust and Slint: the same UI for the board and the browser. See `app/README.md`. |
+| `pcan-can-eth-gateway-main/` | Firmware for the CAN gateway: bridges all six buses to Ethernet and logs them to SD. |
 | `tools/` | Scripts for the board over its USB-C serial console: install, CAN simulation, screen capture. |
 | `spike/` | The first hardware check on the board (display, touch, CAN). Kept for its notes. |
 
@@ -43,6 +44,7 @@ The display's time to empty counts down to the 9% reserve, so "empty" means no u
 
 - **Range on the display:** for example "≈ 110 nm at this speed" next to time to empty, working out speed from the current draw with the curve above.
 - **Modules view** (VIEW 2): each side's 16 module voltages from the Orion BMS's cell broadcast, with the spread and any outlier.
+- **Board on the gateway:** sync the Slint app with the prototype (gateway buses, MPPT slots), and have it listen to the router's UDP instead of `can0`/`can1`. `pnpm bus --udp` stands in for the router.
 
 ### CAN buses
 
@@ -51,10 +53,10 @@ The gateway (which made the Oct 6 log) has one bus per device group:
 | Bus | What's on it |
 |---|---|
 | CAN1 | Reserved for loading new gateway firmware |
-| CAN2 | Starboard BMS |
-| CAN3 | Port BMS |
+| CAN2 | Starboard BMS (and charger, assumed) |
+| CAN3 | Port BMS (and charger, assumed) |
 | CAN4 | Port motor controller |
 | CAN5 | Starboard motor controller, throttle/helm station |
 | CAN6 | NMEA 2000, including all four MPPTs |
 
-The display currently expects each side's BMS, motor controller, MPPTs and charger on one bus per side, and the CoreMP135 has only two CAN ports. Since the gateway already sees and decodes all of this, the display will likely take its data from the gateway instead. It will also need to know which MPPTs are allocated to which bank.
+The CoreMP135 has only two CAN ports, so the display takes the gateway's raw CAN frames over Ethernet instead (a PCAN-Router Pro FD broadcasting cannelloni UDP; firmware in `pcan-can-eth-gateway-main/`). The React prototype already works this way; the board app still reads `can0`/`can1`. See [GATEWAY.md](GATEWAY.md).

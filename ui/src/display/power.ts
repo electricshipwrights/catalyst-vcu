@@ -1,9 +1,12 @@
 import type { Smoothing } from './settings'
 import type { Currents, SideReading } from './useSide'
 
-export const SCALE_MAX_A = 400
-// Solar gets its own scale: 3.5 kW per side is about 68 A at full sun
-export const SOLAR_SCALE_A = 80
+// The bars' full scale: a motor at full power is about 293 A
+export const SCALE_MAX_A = 300
+// Relative scale: solar per MPPT, each about 34 A at full sun (1,750 W at 51.2 V)
+export const SOLAR_SLOT_A = 35
+// Relative scale: shore charging, up to the Elcon's 80 A
+export const SHORE_SLOT_A = 80
 // Per side: 110 kWh total, so 55 kWh at 51.2 V nominal (the Orion BMS log implies ~1,105 Ah)
 export const CAPACITY_AH = 1100
 // About 100 of the 110 kWh is usable, so "empty" is 9% SOC
@@ -16,8 +19,16 @@ export type PowerView =
       soc: number
       shore: boolean
       solarA: number
+      // Per MPPT 1–4; null when it isn't allocated to this side
+      mpptA: (number | null)[]
+      // Shore charging; null when the charger is silent (no shore power)
+      chargerA: number | null
       inA: number
       outA: number
+      // The house load from the inside out (base + heater + inverter), then the motor
+      baseA: number
+      heaterA: number
+      inverterA: number
       propulsionA: number
       netA: number
       eta: string | null
@@ -57,16 +68,25 @@ export function powerView(r: SideReading, smoothing: Smoothing): PowerView {
   const solar = Math.max(0, c.solarA ?? 0)
   const supplied = solar + Math.max(0, c.chargerA ?? 0)
   const propulsion = Math.max(0, c.propulsionA ?? 0)
-  const load = propulsion + Math.max(0, c.houseA)
+  const house = Math.max(0, c.houseA)
+  const load = propulsion + house
   const inA = Math.round(supplied)
   const outA = Math.round(load)
+  // The heater and inverter are part of the derived house load, so they can't exceed it
+  const heaterA = Math.round(Math.min(house, Math.max(0, c.heaterA ?? 0)))
+  const inverterA = Math.round(Math.min(house - heaterA, Math.max(0, c.inverterA ?? 0)))
   return {
     online: true,
     soc: r.soc,
     shore: r.shore,
     solarA: Math.round(solar),
+    mpptA: r.mpptA.map((a) => (a == null ? null : Math.max(0, a))),
+    chargerA: c.chargerA == null ? null : Math.round(Math.max(0, c.chargerA)),
     inA,
     outA,
+    baseA: Math.max(0, outA - Math.round(propulsion) - heaterA - inverterA),
+    heaterA,
+    inverterA,
     propulsionA: Math.round(propulsion),
     netA: inA - outA,
     eta: r.etaNetA == null ? pendingEta(r.soc, inA - outA) : eta(r.soc, r.etaNetA),

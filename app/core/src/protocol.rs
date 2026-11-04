@@ -3,7 +3,7 @@
 pub const ORION_PACK: u32 = 0x6b0;
 pub const ORION_LIMITS: u32 = 0x6b1;
 pub const PGN_BATTERY_STATUS: u32 = 127508;
-pub const MPPT_SOURCES: [u8; 2] = [0x22, 0x23];
+pub const MPPT_SOURCES: [u8; 4] = [0x22, 0x23, 0x24, 0x25];
 /// Placeholder until the real motor controller's frame is known.
 pub const MOTOR_STATUS: u32 = 0x700;
 pub const ELCON_STATUS: u32 = 0x18ff50e5;

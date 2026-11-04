@@ -42,7 +42,7 @@ Run these from `app/`, with the board plugged in over USB-C. The scripts find it
 - **Log:** the display logs to `/var/log/vcu-display.log`.
 - **Crashes:** nothing restarts the display if it exits; reboot or run `install.py` again.
 - **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
-- **Buses:** `can0` is port and `can1` is starboard.
+- **Buses:** `can0` is port and `can1` is starboard. This predates the gateway (`../GATEWAY.md`); the app will move to the router's UDP stream.
 - **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `smoothing=instant`), which is re-read when it changes. Picking a theme on the SETTINGS view (button C) saves it there, so it survives reboots.
 - **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
 

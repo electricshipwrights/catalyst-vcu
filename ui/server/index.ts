@@ -10,12 +10,16 @@ import {
   type BusName,
   type BusStatus,
   type ClientMsg,
+  type GatewaySource,
   type ServerMsg,
   type ServerStatus,
   type SimParams,
   type SourceKind,
 } from '../shared/bus'
+import type { Bank } from '../shared/gateway'
 import { VESSEL } from '../shared/vessel'
+import { Gateway } from './gateway'
+import { RouterSource, UdpOut } from './router'
 import { BatterySim } from './sim'
 import { CandumpSource, ReplaySource, type Source } from './sources'
 
@@ -24,21 +28,23 @@ const LOG_DIRS = [path.join(root, 'logs'), path.resolve(root, '..')]
 const PORT = Number(process.env.BUS_PORT ?? 5190)
 
 const BASE: SimParams = {
-  solarA: 0,
+  panelA: [26, 26, 29, 29],
   propulsionA: 0,
   houseA: 0,
+  heaterA: 0,
+  inverterA: 0,
+  mppts: [],
   tempC: 24,
   capacityAh: VESSEL.capacityAh,
   bms: true,
   mppt: true,
-  motor: true,
   charger: true,
   shore: false,
 }
 
 const INITIAL: Record<BusName, { params: SimParams; soc: number }> = {
-  port: { params: { ...BASE, solarA: 52, propulsionA: 70, houseA: 3 }, soc: 64 },
-  stbd: { params: { ...BASE, solarA: 58, propulsionA: 65, houseA: 15 }, soc: 71 },
+  port: { params: { ...BASE, propulsionA: 70, houseA: 3, mppts: [0, 1] }, soc: 64 },
+  stbd: { params: { ...BASE, propulsionA: 65, houseA: 15, mppts: [2, 3] }, soc: 71 },
 }
 
 function listLogs() {
@@ -49,6 +55,8 @@ function listLogs() {
   )
 }
 
+const gateway = new Gateway()
+
 class Bus {
   source: SourceKind = 'sim'
   external: Source | null = null
@@ -58,7 +66,7 @@ class Bus {
   private count = 0
 
   constructor(readonly name: BusName) {
-    this.sim = new BatterySim(INITIAL[name].params, INITIAL[name].soc)
+    this.sim = new BatterySim(name, INITIAL[name].params, INITIAL[name].soc)
     this.sim.run((f) => {
       if (this.source === 'sim') this.push(f)
     })
@@ -70,6 +78,7 @@ class Bus {
 
   push = (f: WireFrame) => {
     this.pending.push(f)
+    gateway.push(this.name, f)
     this.count++
   }
 
@@ -95,9 +104,26 @@ function useSpec(bus: Bus, spec: string) {
   else throw new Error(`unknown source "${spec}" (sim | off | replay:<file> | candump[:iface])`)
 }
 
+// The gateway stream: the sims (as the router would send them) or the real router
+let gatewaySource: GatewaySource = 'sim'
+const router = new RouterSource()
+let udpOut: UdpOut | null = null
+const counts = new Map<number, number>()
+let fps: Record<number, number> = {}
+
+function useGateway(source: GatewaySource) {
+  if (source === gatewaySource) return
+  gatewaySource = source
+  if (source === 'router') router.start(forward)
+  else router.stop()
+}
+
 for (const arg of process.argv.slice(2)) {
   const m = /^--(port|stbd)=(.+)$/.exec(arg)
   if (m) useSpec(buses[m[1] as BusName], m[2])
+  if (arg === '--gateway=router') useGateway('router')
+  const udp = /^--udp(?:=(.+))?$/.exec(arg)
+  if (udp) udpOut = new UdpOut(udp[1] ?? '255.255.255.255')
 }
 
 const wss = new WebSocketServer({ port: PORT, path: '/bus' })
@@ -107,14 +133,44 @@ function broadcast(msg: ServerMsg) {
   for (const c of wss.clients) if (c.readyState === WebSocket.OPEN) c.send(s)
 }
 
+// A bus's cannelloni packet to the browsers, as a binary message: the bus
+// number (its UDP port − 20000), then the packet
+function forward(bus: number, packet: Uint8Array) {
+  counts.set(bus, (counts.get(bus) ?? 0) + ((packet[3] << 8) | packet[4]))
+  const msg = new Uint8Array(1 + packet.length)
+  msg[0] = bus
+  msg.set(packet, 1)
+  for (const c of wss.clients) if (c.readyState === WebSocket.OPEN) c.send(msg)
+}
+
+setInterval(() => {
+  fps = Object.fromEntries(counts)
+  counts.clear()
+}, 1000)
+
 const statusMsg = (): ServerStatus => ({
   type: 'status',
   buses: BUSES.map((b) => buses[b].status()),
+  gateway: { source: gatewaySource, fps, router: router.from, udpOut: udpOut?.address ?? null },
   logs: listLogs(),
   speed: buses.port.sim.speed,
 })
 
+// Which side each MPPT is on, from the sims (the gateway's own frame)
+const allocation = (): Bank[] =>
+  [0, 1, 2, 3].map((i) => BUSES.find((b) => buses[b].sim.params.mppts.includes(i)) ?? 'none')
+
 function handle(msg: ClientMsg) {
+  if (msg.type === 'gateway') return useGateway(msg.source)
+  if (msg.type === 'allocation') {
+    BUSES.forEach((b) => buses[b].sim.patch({ mppts: msg.sides.flatMap((s, i) => (s === b ? [i] : [])) }))
+    gateway.allocation(allocation())
+    return
+  }
+  if (msg.type === 'panels') {
+    if (msg.a.length === 4) BUSES.forEach((b) => buses[b].sim.patch({ panelA: msg.a.map((a) => Math.min(100, Math.max(0, Number(a) || 0))) }))
+    return
+  }
   if (msg.type === 'speed') {
     if (SIM_SPEEDS.includes(msg.speed)) BUSES.forEach((b) => (buses[b].sim.speed = msg.speed))
     return
@@ -149,7 +205,16 @@ setInterval(() => {
     broadcast({ type: 'frames', bus: b, frames: bus.pending })
     bus.pending = []
   }
+  // The sims' frames as the router would send them (dropped while the real
+  // router is the source)
+  for (const { bus, packet } of gateway.flush()) {
+    if (gatewaySource !== 'sim') continue
+    forward(bus, packet)
+    udpOut?.send(bus, packet)
+  }
 }, 20)
+
+setInterval(() => gateway.allocation(allocation()), 1000)
 
 setInterval(() => broadcast(statusMsg()), 250)
 

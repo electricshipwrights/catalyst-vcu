@@ -1,3 +1,4 @@
 app/target/*
 spike/*
 tools/__pycache__/*
+pcan-can-eth-gateway-main/*

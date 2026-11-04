@@ -5,8 +5,14 @@ export const ORION_CELL_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 0x24, 0x25, 0x26, 0x27, 0
 export const ORION_RELAYS_DEFAULT = 0xc04b
 
 export const PGN_BATTERY_STATUS = 127508
-export const MPPT_SOURCES = new Set([0x22, 0x23])
-export const SIM_MPPT_SOURCE = 0x22
+// MPPTs 1–4 by NMEA 2000 source address; each reports on the bus of the side it's allocated to
+export const MPPT_SOURCE_LIST = [0x22, 0x23, 0x24, 0x25]
+export const MPPT_SOURCES = new Set(MPPT_SOURCE_LIST)
+// House loads that report on NMEA 2000 (CAN6), one of each per side, with the
+// current each draws from the battery as PGN 127508's current. All assumed, to
+// revisit: which devices, their PGN and addresses, and which side they're on.
+export const INVERTER_SOURCES = { port: 0x30, stbd: 0x31 } as const
+export const HEATER_SOURCES = { port: 0x32, stbd: 0x33 } as const
 
 export const MOTOR_STATUS = 0x700
 

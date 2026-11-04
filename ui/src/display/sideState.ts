@@ -1,9 +1,14 @@
+import type { BusName } from '../../shared/bus'
 import type { Frame } from '../../shared/can'
+import { DEFAULT_ALLOCATION, MPPT_ALLOCATION, decodeAllocation, type Bank } from '../../shared/gateway'
 import {
   ELCON_FLAGS,
   ELCON_STATUS,
+  HEATER_SOURCES,
+  INVERTER_SOURCES,
   MOTOR_STATUS,
   MPPT_SOURCES,
+  MPPT_SOURCE_LIST,
   ORION_LIMITS,
   ORION_PACK,
   PGN_BATTERY_STATUS,
@@ -28,7 +33,10 @@ export type Currents = {
   solarA: number | null
   chargerA: number | null
   propulsionA: number | null
-  houseA: number
+  houseA: number // everything but propulsion, derived
+  // The parts of houseA that report themselves (on CAN6); null when silent
+  heaterA: number | null
+  inverterA: number | null
 }
 
 export type Live = Currents & {
@@ -38,26 +46,47 @@ export type Live = Currents & {
   packA: number
   limits: OrionLimits | null
   shore: boolean
+  // MPPTs 1–4: current from each one allocated to this side, null for the rest
+  mpptA: (number | null)[]
 }
 
 type Stamped<T> = T & { at: number }
 
 export type Raw = {
+  side: BusName
+  // Which side each MPPT feeds, from the gateway; DEFAULT_ALLOCATION until it says
+  allocation: Bank[] | null
   pack: Stamped<OrionPack> | null
   limits: Stamped<OrionLimits> | null
   solar: Map<number, Stamped<{ a: number }>>
   motor: Stamped<{ a: number }> | null
   charger: Stamped<ElconStatus> | null
   house: Stamped<{ a: number }> | null
+  heater: Stamped<{ a: number }> | null
+  inverter: Stamped<{ a: number }> | null
 }
 
-export const emptyRaw = (): Raw => ({ pack: null, limits: null, solar: new Map(), motor: null, charger: null, house: null })
+export const emptyRaw = (side: BusName): Raw => ({
+  side,
+  allocation: null,
+  pack: null,
+  limits: null,
+  solar: new Map(),
+  motor: null,
+  charger: null,
+  house: null,
+  heater: null,
+  inverter: null,
+})
 
 const fresh = <T extends { at: number }>(x: T | null | undefined, now: number, ms: number) =>
   x && now - x.at < ms ? x : null
 
+// Whether an MPPT (by source address) feeds this side
+const mine = (raw: Raw, source: number) => (raw.allocation ?? DEFAULT_ALLOCATION)[MPPT_SOURCE_LIST.indexOf(source)] === raw.side
+
 const solarSum = (raw: Raw, now: number) => {
-  const live = [...raw.solar.values()].filter((s) => fresh(s, now, DEVICE_STALE_MS))
+  const live = [...raw.solar].filter(([src, s]) => mine(raw, src) && fresh(s, now, DEVICE_STALE_MS)).map(([, s]) => s)
   return live.length ? live.reduce((sum, s) => sum + s.a, 0) : null
 }
 
@@ -70,7 +99,7 @@ function sampleHouse(raw: Raw, at: number) {
   raw.house = { a: Math.max(0, solar + charger + pack.packA - propulsion), at }
 }
 
-export function ingest(raw: Raw, f: Frame, at: number) {
+export function ingest(raw: Raw, f: Omit<Frame, 't'>, at: number) {
   if (!f.ext && f.id === ORION_PACK) {
     const p = decodeOrionPack(f.data)
     if (p) raw.pack = { ...p, at }
@@ -88,8 +117,17 @@ export function ingest(raw: Raw, f: Frame, at: number) {
   } else if (f.ext && n2kPgn(f.id) === PGN_BATTERY_STATUS && MPPT_SOURCES.has(n2kSource(f.id))) {
     const b = decodeBatteryStatus(f.data)
     if (b?.a == null) return
-    raw.solar.set(n2kSource(f.id), { a: b.a, at })
-    if (!fresh(raw.charger, at, CHARGER_STALE_MS)) sampleHouse(raw, at)
+    const src = n2kSource(f.id)
+    raw.solar.set(src, { a: b.a, at })
+    if (mine(raw, src) && !fresh(raw.charger, at, CHARGER_STALE_MS)) sampleHouse(raw, at)
+  } else if (f.ext && n2kPgn(f.id) === PGN_BATTERY_STATUS && n2kSource(f.id) === HEATER_SOURCES[raw.side]) {
+    const b = decodeBatteryStatus(f.data)
+    if (b?.a != null) raw.heater = { a: b.a, at }
+  } else if (f.ext && n2kPgn(f.id) === PGN_BATTERY_STATUS && n2kSource(f.id) === INVERTER_SOURCES[raw.side]) {
+    const b = decodeBatteryStatus(f.data)
+    if (b?.a != null) raw.inverter = { a: b.a, at }
+  } else if (!f.ext && f.id === MPPT_ALLOCATION) {
+    raw.allocation = decodeAllocation(f.data)
   }
 }
 
@@ -116,6 +154,9 @@ export function read(raw: Raw, now: number): Live | { online: false } {
     chargerA,
     propulsionA,
     houseA,
+    heaterA: fresh(raw.heater, now, DEVICE_STALE_MS)?.a ?? null,
+    inverterA: fresh(raw.inverter, now, DEVICE_STALE_MS)?.a ?? null,
     shore: !!charger && !(charger.flags & ELCON_FLAGS.inputVoltage),
+    mpptA: MPPT_SOURCE_LIST.map((s) => (mine(raw, s) ? (fresh(raw.solar.get(s), now, DEVICE_STALE_MS)?.a ?? null) : null)),
   }
 }

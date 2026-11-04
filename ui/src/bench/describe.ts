@@ -1,4 +1,5 @@
 import type { Frame } from '../../shared/can'
+import { MPPT_ALLOCATION, decodeAllocation } from '../../shared/gateway'
 import {
   ELCON_COMMAND,
   ELCON_STATUS,
@@ -20,7 +21,10 @@ import {
 
 const hex2 = (n: number) => `0x${n.toString(16).toUpperCase().padStart(2, '0')}`
 
-export function describe(f: Frame): { name: string; value: string } {
+export function describe(f: Omit<Frame, 't'>): { name: string; value: string } {
+  if (!f.ext && f.id === MPPT_ALLOCATION) {
+    return { name: 'MPPT allocation', value: decodeAllocation(f.data).map((s, i) => `${i + 1}:${s}`).join(' ') }
+  }
   if (f.ext && f.id === ELCON_COMMAND) {
     const c = decodeElconCommand(f.data)
     return { name: 'Orion → Elcon cmd', value: c ? `${c.maxV.toFixed(1)} V ${c.maxA.toFixed(1)} A ${c.stop ? 'stop' : 'charge'}` : 'bad' }
