@@ -48,6 +48,8 @@ export type Live = Currents & {
   shore: boolean
   // MPPTs 1–4: current from each one allocated to this side, null for the rest
   mpptA: (number | null)[]
+  // How many MPPTs are allocated to this side, reporting or not
+  mppts: number
 }
 
 type Stamped<T> = T & { at: number }
@@ -158,5 +160,6 @@ export function read(raw: Raw, now: number): Live | { online: false } {
     inverterA: fresh(raw.inverter, now, DEVICE_STALE_MS)?.a ?? null,
     shore: !!charger && !(charger.flags & ELCON_FLAGS.inputVoltage),
     mpptA: MPPT_SOURCE_LIST.map((s) => (mine(raw, s) ? (fresh(raw.solar.get(s), now, DEVICE_STALE_MS)?.a ?? null) : null)),
+    mppts: MPPT_SOURCE_LIST.filter((s) => mine(raw, s)).length,
   }
 }

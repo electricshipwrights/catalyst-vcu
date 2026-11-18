@@ -96,7 +96,7 @@
 .side-label,
 .row-label,
 .tick,
-.page.stub,
+.when-label,
 .settings-label,
 .lcd-nav {
   font-family: var(--text);
@@ -119,12 +119,6 @@
 .page {
   position: absolute;
   inset: 22px 0 0;
-}
-
-.page.stub {
-  display: grid;
-  place-items: center;
-  color: var(--dim);
 }
 
 /* Settings: groups of large touch targets, the active one filled like the nav */
@@ -425,6 +419,193 @@
 
 .flow-icon {
   fill: currentColor;
+}
+
+/* Range: a speed stepper and the window up top, the range, then the lower
+   side's SOC over the window */
+.range {
+  inset: 0;
+}
+
+.range > * {
+  position: absolute;
+}
+
+.range button {
+  all: unset;
+  position: absolute;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.range .step {
+  top: 28px;
+  width: 36px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--edge);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.range .speed {
+  top: 28px;
+  left: 46px;
+  width: 64px;
+  height: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.range .kn {
+  margin-top: 1px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.range .basis {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+}
+
+.range .windows {
+  top: 28px;
+  left: 160px;
+  width: 150px;
+  height: 32px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.range .windows button {
+  position: static;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--edge);
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.range .windows button.on {
+  background: var(--track);
+  border-color: var(--track);
+  color: var(--ink);
+}
+
+.range-nm {
+  top: 66px;
+  left: 10px;
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 32px;
+}
+
+.range-nm .unit {
+  font-family: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dim);
+}
+
+/* Reserve times beside the range: with the sun in the center column, and
+   without it on the right */
+.when {
+  top: 66px;
+}
+
+.when-center {
+  left: 110px;
+  width: 100px;
+  text-align: center;
+}
+
+.when-right {
+  right: 10px;
+  text-align: right;
+}
+
+.when-label {
+  color: var(--dim);
+}
+
+.when-time {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.chart {
+  overflow: visible;
+}
+
+.chart .sun {
+  fill: var(--solar);
+  opacity: 0.35;
+}
+
+.chart .grid {
+  stroke: var(--edge);
+  stroke-width: 1;
+}
+
+.chart .reserve {
+  stroke: var(--dim);
+  stroke-width: 1;
+}
+
+.chart path:not(.sun) {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart .with-solar {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.chart .battery-only {
+  stroke: var(--dim);
+  stroke-width: 2;
+}
+
+.tick.level {
+  right: 10px;
+  left: auto;
+}
+
+.range.offline {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  color: var(--dim);
+}
+
+.range.offline > * {
+  position: static;
+}
+
+.range.offline .net {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 18px;
+}
+
+.range.offline .detail {
+  font-size: 11px;
+  line-height: 14px;
 }
 
 .shore-icon {

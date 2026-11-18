@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { onButton } from './buttons'
 import { PowerPage } from './PowerPage'
+import { RangePage } from './RangePage'
 import { SettingsPage } from './SettingsPage'
 import { useTheme } from './settings'
 import './display.css'
 
 type Page = { title: string; Component: ComponentType }
 
-const Stub = () => <div className="page stub">tbd</div>
-
 // One view per hardware button: A, B, C
 const PAGES: Page[] = [
   { title: 'POWER', Component: PowerPage },
-  { title: 'VIEW 2', Component: Stub },
+  { title: 'RANGE', Component: RangePage },
   { title: 'SETTINGS', Component: SettingsPage },
 ]
 

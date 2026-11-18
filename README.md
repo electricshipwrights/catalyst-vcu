@@ -36,14 +36,32 @@ Summer range, from the battery (about 100 kWh usable of 110 kWh) plus solar coll
 
 Power rises roughly with the cube of speed in this range. The bench's Cruise preset uses 6 knots: about 40 A propulsion plus a 10 A house load per side.
 
+### Weekly range
+
+How far a week's energy goes at each speed: a rough estimate, for propulsion only (no house loads). Summer is the 100 kWh battery plus ~135 kWh of solar. Winter is ~35 kWh of solar on its own (≈ 5 kWh a day).
+
+| Speed | Propulsion, both motors | Per side | Summer (235 kWh) | Battery (100 kWh) | Winter solar (35 kWh) |
+|---|---|---|---|---|---|
+| 5 kn | 2 kW | ≈ 20 A | 588 nm | 250 nm | 88 nm |
+| 6 kn | 4.5 kW | ≈ 44 A | 313 nm | 133 nm | 47 nm |
+| 7 kn | 8 kW | ≈ 78 A | 206 nm | 88 nm | 31 nm |
+| 8 kn | 13 kW | ≈ 127 A | 145 nm | 62 nm | 22 nm |
+| 9 kn | 20 kW | ≈ 195 A | 106 nm | 45 nm | 16 nm |
+| 10 kn | 30 kW | ≈ 293 A | 78 nm | 33 nm | 12 nm |
+
+The Oct 6 log agrees at its one known point: about 10.4 kW for both motors at ~1,000 rpm (≈ 7.5 kn), against 10.5 kW from the table. The log has no speed data, so the rest is untested; logging GPS speed over ground would check it.
+
 With summer solar, the boat has about **235 kWh per week**: the 100 kWh battery plus about 135 kWh of solar (≈ 19 kWh a day, roughly 2.7 full-sun hours of the 7 kW array). At 6 knots that's about 52 hours, or ~310 nm, of motoring a week.
 
 The display's time to empty counts down to the 9% reserve, so "empty" means no usable energy left; below 9% it shows "reserve".
 
+The **RANGE** view (button B; React prototype only so far, not yet in the Slint app) projects the lower side's SOC every 5 minutes at a speed, until the first side reaches the reserve. It projects twice: with the solar forecast and on battery alone. The speed follows the current draw through the weekly table's propulsion power, to 0.1 kn (6 knots when not underway), or you can pick one from 1 to 10 kn with − and +, in 0.5 kn steps. Tapping the speed goes back to following the boat. The window is today (to local midnight) or the next 24 hours. The range reads "133+ nm" when the window ends before the reserve. The solar forecast is a clear-sky sun model scaled by how the array is doing now, at a fixed position (48.5° N, 123° W). The math is in `ui/src/display/range.ts`.
+
 ## Planned
 
 - **Range on the display:** for example "≈ 110 nm at this speed" next to time to empty, working out speed from the current draw with the curve above.
-- **Modules view** (VIEW 2): each side's 16 module voltages from the Orion BMS's cell broadcast, with the spread and any outlier.
+- **Boat position for the sun:** the range view's solar forecast uses a fixed position; read it from a GPS (NMEA 2000 PGN 129025) or a setting.
+- **Modules view:** each side's 16 module voltages from the Orion BMS's cell broadcast, with the spread and any outlier.
 - **Board on the gateway:** have the board app listen to the router's UDP instead of `can0`/`can1` (the decoder is in `app/core/src/gateway.rs`). `pnpm bus --udp` stands in for the router.
 
 ### CAN buses

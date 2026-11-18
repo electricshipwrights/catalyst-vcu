@@ -25,7 +25,7 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 
 - **The display only sees raw CAN frames.** It never reads sim state. `src/display/useSide.ts` picks a side's frames by gateway bus; `shared/gateway.ts` holds the bus mapping and the packet codec.
 - `shared/protocol.ts` encodes and decodes every message. The simulator, the display, and the bench traffic tables all use it.
-- `src/display/power.ts` holds the pure view math: in/out/net and time to empty or full. Port it to C/LVGL if needed.
+- `src/display/power.ts` and `range.ts` hold the pure view math: in/out/net and time to empty or full, and the range view's projection.
 
 ## Slint renderer
 
