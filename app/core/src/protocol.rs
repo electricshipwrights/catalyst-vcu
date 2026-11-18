@@ -4,6 +4,11 @@ pub const ORION_PACK: u32 = 0x6b0;
 pub const ORION_LIMITS: u32 = 0x6b1;
 pub const PGN_BATTERY_STATUS: u32 = 127508;
 pub const MPPT_SOURCES: [u8; 4] = [0x22, 0x23, 0x24, 0x25];
+/// House loads that report on NMEA 2000 (CAN6), one of each per side (port,
+/// starboard), with the current each draws as PGN 127508's current. All
+/// assumed, to revisit: which devices, their PGN and addresses, and sides.
+pub const INVERTER_SOURCES: [u8; 2] = [0x30, 0x31];
+pub const HEATER_SOURCES: [u8; 2] = [0x32, 0x33];
 /// Placeholder until the real motor controller's frame is known.
 pub const MOTOR_STATUS: u32 = 0x700;
 pub const ELCON_STATUS: u32 = 0x18ff50e5;

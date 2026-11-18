@@ -3,11 +3,15 @@
 //! `performance.now()`, so the same code runs on the device and in WASM.
 //! `tests/parity.rs` checks it against the prototype frame for frame.
 
+pub mod autoscale;
 pub mod filters;
+pub mod gateway;
 pub mod power;
 pub mod protocol;
 pub mod side;
 
+pub use autoscale::AutoScale;
+pub use gateway::SideName;
 pub use power::{Eta, PowerView, Smoothing, power_view};
 pub use side::{Currents, Live, Reading, Side};
 

@@ -2,10 +2,10 @@
 //!
 //! Environment:
 //!   VCU_FB             framebuffer (default /dev/fb1, the LCD; fb0 is HDMI)
-//!   VCU_PORT_CAN       port bus (default can0)
-//!   VCU_STBD_CAN       starboard bus (default can1)
+//!   VCU_PORT_CAN       port bus (default can0), all of port's devices on one bus
+//!   VCU_STBD_CAN       starboard bus (default can1); this predates the gateway
 //!   VCU_SETTINGS       settings file (default /etc/vcu/display.conf), lines like
-//!                      `theme=night`, `scale=absolute` and `smoothing=instant`,
+//!                      `theme=night`, `input=combined` and `smoothing=instant`,
 //!                      re-read when changed
 //!   VCU_ROTATE         180 (default: the board is mounted upside down, so the
 //!                      A/B/C buttons are above the screen) or 0
@@ -25,7 +25,7 @@ use slint::platform::software_renderer::{MinimalSoftwareWindow, Rgb565Pixel};
 use slint::{ComponentHandle, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::Smoothing;
 use vcu_display::{
-    Display, Palette, Prefs, Sides, drive, parse_scale, parse_smoothing, parse_theme, scale_name,
+    Display, Palette, Prefs, Sides, drive, input_name, parse_input, parse_smoothing, parse_theme,
     theme_name,
 };
 
@@ -85,9 +85,9 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
                     Some(t) => ui.global::<Palette>().set_theme(t),
                     None => eprintln!("{path}: unknown theme {v:?}"),
                 },
-                Some(("scale", v)) => match parse_scale(v) {
-                    Some(s) => ui.global::<Prefs>().set_scale(s),
-                    None => eprintln!("{path}: unknown scale {v:?}"),
+                Some(("input", v)) => match parse_input(v) {
+                    Some(i) => ui.global::<Prefs>().set_input(i),
+                    None => eprintln!("{path}: unknown input {v:?}"),
                 },
                 Some(("smoothing", v)) => match parse_smoothing(v) {
                     Some(s) => smoothing.set(s),
@@ -140,7 +140,7 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, ui: &Display) -> Result<(), Box<d
     let smoothing = Rc::new(Cell::new(Smoothing::default()));
     let _settings = watch_settings(ui, smoothing.clone());
     ui.on_theme_selected(|theme| save_setting("theme", theme_name(theme)));
-    ui.on_scale_selected(|scale| save_setting("scale", scale_name(scale)));
+    ui.on_input_selected(|input| save_setting("input", input_name(input)));
     let _driver = drive(ui, sides.clone(), smoothing, now_ms);
     let mut port = can::Bus::open(env_or("VCU_PORT_CAN", "can0"));
     let mut stbd = can::Bus::open(env_or("VCU_STBD_CAN", "can1"));

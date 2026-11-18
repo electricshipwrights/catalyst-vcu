@@ -6,13 +6,14 @@ const AMPLITUDE = 3
 const PERIOD = 24
 const INSET = 24
 const TUCK = 8
+const CORNER = 8 // how far above a box's bottom a wire leaves, when it leaves there
 const LANE = 14 // the first lane's distance from the column
 const LANE_GAP = 10
 
 type Ref = RefObject<HTMLElement | null>
 type Pt = [number, number]
 type Box = { l: number; r: number; t: number; b: number }
-type Leg = { bus: number; b: Box; y: number }
+type Leg = { bus: number; b: Box; y: number; bottom: boolean }
 type Wire = { bus: number; pts: Pt[]; label: Pt; anchor: 'start' | 'end' }
 type Geo = { w: number; h: number; wires: Wire[]; eth: Pt[] }
 
@@ -64,16 +65,17 @@ export function Harness({ stage, display, gateway, fps }: { stage: Ref; display:
         const row = gw.querySelector(`[data-bus="${bus}"]`)
         if (!row) continue
         const r = rel(row)
-        legs[(b.l + b.r) / 2 < mid ? 'port' : 'stbd'].push({ bus, b, y: (r.t + r.b) / 2 })
+        legs[(b.l + b.r) / 2 < mid ? 'port' : 'stbd'].push({ bus, b, y: (r.t + r.b) / 2, bottom: el.dataset.wireAt === 'bottom' })
       }
       for (const side of BUSES) {
         const toward = side === 'port' ? 1 : -1
         const gx = side === 'port' ? g.l : g.r
         // Where a wire leaves its box: level with its row if the row is beside
-        // the box, otherwise near the box's end closest to the row
-        const exit = ({ b, y }: Leg) => {
-          const c = (b.t + b.b) / 2
-          return Math.min(Math.max(y, Math.min(b.t + INSET, c)), Math.max(b.b - INSET, c))
+        // the box, otherwise by the box's header, which names the bus, or at
+        // its bottom corner if the box asks for that
+        const exit = ({ b, y, bottom }: Leg) => {
+          const top = Math.min(b.t + INSET, (b.t + b.b) / 2)
+          return y >= top && y <= b.b - INSET ? y : bottom ? b.b - CORNER : top
         }
         // Wires that turn run down (or up) the gap beside the column. The
         // topmost going down, and the bottommost going up, takes the lane

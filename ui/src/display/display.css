@@ -72,9 +72,9 @@
   --edge: #5c1610;
   --solar: #ff4433;
   --load: #d93a2b;
-  --base: #5c1a12;
-  --heater: #7c2317;
-  --inverter: #9e2c1f;
+  --base: #e04232;
+  --heater: #ff6150;
+  --inverter: #ff9182;
   --shore: #ff7a66;
 }
 
@@ -275,7 +275,7 @@
 }
 
 .track {
-  height: 9px;
+  height: 12px;
   background: var(--track);
   overflow: hidden;
 }
@@ -340,7 +340,7 @@
 
 /* Solar per MPPT: a slot allocated to the other side is just an outline */
 .slot.away {
-  height: 9px;
+  height: 12px;
   box-sizing: border-box;
   border: 1px dashed var(--edge);
 }
@@ -356,14 +356,14 @@
 .row-label {
   left: 134px;
   width: 52px;
-  height: 9px;
-  line-height: 9px;
+  height: 12px;
+  line-height: 12px;
   text-align: center;
   color: var(--dim);
 }
 
 .ticks {
-  top: 190px;
+  top: 187px;
   left: 0;
 }
 

@@ -31,8 +31,6 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 
 The bench can show either this React display or the Slint port in `../app`, which is what runs on the device. The Slint view shows the LCD's exact pixels. It shows Slint by default; switch with **renderer** in the toolbar. To build the Slint version, run `pnpm build:wasm` (setup is in `../app/README.md`). `pnpm parity` regenerates the fixture that keeps the Rust logic in step with `src/display`.
 
-Slint hasn't caught up with the gateway yet: it still reads the older per-side stream, and shows the older power page (one solar bar; load as propulsion + house) rather than the input slots and the house and motor bars.
-
 ## Messages
 
 | Device | Bus | ID | Content |
@@ -49,7 +47,7 @@ Slint hasn't caught up with the gateway yet: it still reads the older per-side s
 
 Orion checksum: `(id + 8 + sum(bytes 0..6)) & 0xFF`. This was verified against all frames in `../2026-07-10-16-02-18.txt`.
 
-Derived values: `load out = solar + charger + pack current`. House = load out − propulsion, sampled when one of the side's MPPTs reports so the two agree; base = house − heater − inverter. The house bar stacks base, heater and inverter from the inner end; the motor has its own bar. Net = in − out.
+Derived values: `load out = solar + charger + pack current`. House = load out − propulsion, sampled when one of the side's MPPTs reports so the two agree; base = house − heater − inverter. The load bar stacks base, heater (steady house) and inverter (intermittent house) from the inner end, with the motor outermost. Net = in − out.
 
 ## Sources
 

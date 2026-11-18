@@ -49,7 +49,7 @@ component Choice {
 export component SettingsPage {
     // A setting was picked here, for saving
     callback theme-selected(int);
-    callback scale-selected(int);
+    callback input-selected(int);
     width: 320px;
     height: 240px;
 
@@ -68,12 +68,12 @@ export component SettingsPage {
     Choice {
         x: 10px;
         y: 108px;
-        label: "SCALE";
-        options: ["RELATIVE", "ABSOLUTE"];
-        selected: Prefs.scale;
+        label: "INPUT";
+        options: ["PER SOURCE", "COMBINED"];
+        selected: Prefs.input;
         chosen(i) => {
-            Prefs.scale = i;
-            root.scale-selected(i);
+            Prefs.input = i;
+            root.input-selected(i);
         }
     }
 }

@@ -19,13 +19,18 @@ export global Palette {
     out property <color> edge: theme == 1 ? #c6c7ca : theme == 2 ? #5c1610 : #3a3d43;
     out property <color> solar: theme == 1 ? #e0a100 : theme == 2 ? #ff4433 : #e9a13b;
     out property <color> load: theme == 1 ? #2b2d31 : theme == 2 ? #d93a2b : #a98bff;
-    out property <color> house: theme == 1 ? #a4a7ad : theme == 2 ? #9a2a1d : #5d4c8f;
+    out property <color> shore: theme == 1 ? #1f7fb0 : theme == 2 ? #ff7a66 : #5fb3e0;
+    // The house load from the inside out, in its own hue (night stays red)
+    out property <color> base: theme == 1 ? #8cc4a2 : theme == 2 ? #e04232 : #2f6b4a;
+    out property <color> heater: theme == 1 ? #4f9a6c : theme == 2 ? #ff6150 : #3f8f62;
+    out property <color> inverter: theme == 1 ? #2a7449 : theme == 2 ? #ff9182 : #57b880;
 }
 
 // User settings that aren't colors (theme lives in Palette)
 export global Prefs {
-    // Bar scales: 0 relative (solar on its own scale), 1 absolute (solar on the load scale)
-    in-out property <int> scale: 0;
+    // The input row: 0 per source (a slot each for shore and the MPPTs, on
+    // their own scales), 1 combined (one bar on the load scale)
+    in-out property <int> input: 0;
 }
 
 export global Fonts {

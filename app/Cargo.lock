@@ -4188,8 +4188,7 @@ dependencies = [
 name = "vcu-web"
 version = "0.1.0"
 dependencies = [
- "serde",
- "serde_json",
+ "js-sys",
  "vcu-display",
  "wasm-bindgen",
  "web-sys",

@@ -10,8 +10,16 @@ export struct SideView {
     soc: int,
     shore: bool,
     solar-a: int,
+    // MPPTs 1–4: amps, or −1 when not allocated to this side
+    mppt-a: [float],
+    // Shore charging; −1 when the charger is silent (no shore power)
+    charger-a: int,
     in-a: int,
     out-a: int,
+    // The house load from the inside out, then the motor
+    base-a: int,
+    heater-a: int,
+    inverter-a: int,
     propulsion-a: int,
     net-a: int,
     // 0 none, 1 full, 2 pending (still settling), 3 time, 4 reserve (discharging below 9%)
@@ -24,14 +32,21 @@ global Scale {
     out property <length> track-w: 124px;
     out property <length> port-x: 10px;
     out property <length> stbd-x: 186px;
-    out property <length> solar-y: 148px;
+    out property <length> input-y: 148px;
     out property <length> load-y: 170px;
 
-    // Solar has its own scale: 3.5 kW per side is about 68 A at full sun
-    out property <int> solar-scale: 80;
-    // Relative: solar on its own scale; absolute: on the load scale
-    out property <int> solar-full: Prefs.scale == 1 ? self.load-full : self.solar-scale;
-    out property <int> load-full: 400;
+    // Input per source: shore at the inner end, then MPPT 1–4, each on its
+    // own scale (the Elcon's 80 A; about 34 A per MPPT at full sun)
+    out property <length> slot-gap: 4px;
+    out property <length> slot-w: (self.track-w - 4 * self.slot-gap) / 5;
+    out property <float> shore-slot-a: 80;
+    out property <float> solar-slot-a: 35;
+
+    // Slot n from the inner end, in the same place on both sides
+    public pure function slot-x(port: bool, n: int) -> length {
+        return port ? self.port-x + self.track-w - self.slot-w - n * (self.slot-w + self.slot-gap)
+            : self.stbd-x + n * (self.slot-w + self.slot-gap);
+    }
 
     // Amps to pixels along a track whose full scale is `full`
     public pure function px(amps: int, full: int) -> length {
@@ -44,20 +59,15 @@ global Scale {
     }
 }
 
-// A bar with up to two segments: [0, a) and [a, b). Port bars grow leftward.
-// With `mark-end`, a 2px line in the load color marks the end of the bar.
-// A low-contrast 1px border inside the track, under the bars, shows only
-// where the track is empty.
+// A bar of up to four parts (amps) stacked from the inner end; port bars grow
+// leftward. A 1px gap where one part meets the next. A low-contrast 1px
+// border inside the track, under the bars, shows only where it's empty.
 component Track {
     in property <bool> port;
-    in property <int> a;
-    in property <int> b;
-    in property <color> a-color;
-    in property <color> b-color;
-    in property <bool> mark-end;
+    in property <[int]> parts;
+    in property <[color]> colors;
     // Amps at the far end of the track
-    in property <int> full-scale: Scale.load-full;
-    property <length> end: Scale.px(max(root.a, root.b), root.full-scale);
+    in property <int> full-scale;
     width: Scale.track-w;
     height: 12px;
 
@@ -70,29 +80,54 @@ component Track {
             border-color: Palette.edge;
         }
 
-        Rectangle {
+        for a[i] in root.parts: Rectangle {
+            property <int> from: i == 0 ? 0 : i == 1 ? root.parts[0] : i == 2 ? root.parts[0] + root.parts[1] : root.parts[0] + root.parts[1] + root.parts[2];
+            property <length> offset: Scale.px(self.from, root.full-scale) + (self.from > 0 ? 1px : 0);
             y: 0;
-            width: Scale.px(root.a, root.full-scale);
+            width: max(0px, Scale.px(self.from + a, root.full-scale) - self.offset);
             height: parent.height;
-            x: root.port ? parent.width - self.width : 0;
-            background: root.a-color;
+            x: root.port ? parent.width - self.offset - self.width : self.offset;
+            background: root.colors[i];
         }
+    }
+}
 
-        Rectangle {
-            y: 0;
-            width: max(0px, Scale.px(root.b, root.full-scale) - Scale.px(root.a, root.full-scale));
-            height: parent.height;
-            x: root.port ? parent.width - Scale.px(root.b, root.full-scale) : Scale.px(root.a, root.full-scale);
-            background: root.b-color;
-        }
+// A 1px dashed outline, like CSS's `1px dashed`: 3px dashes, 3px apart
+component Dashed {
+    in property <color> color;
+    property <int> across: ceil(self.width / 6px);
+    property <int> down: ceil(self.height / 6px);
 
-        if root.mark-end && root.end > 0: Rectangle {
-            y: 0;
-            width: 2px;
-            height: parent.height;
-            x: root.port ? parent.width - root.end : root.end - self.width;
-            background: Palette.load;
-        }
+    for i in root.across: Rectangle {
+        x: i * 6px;
+        y: 0;
+        width: min(3px, root.width - self.x);
+        height: 1px;
+        background: root.color;
+    }
+
+    for i in root.across: Rectangle {
+        x: i * 6px;
+        y: root.height - 1px;
+        width: min(3px, root.width - self.x);
+        height: 1px;
+        background: root.color;
+    }
+
+    for i in root.down: Rectangle {
+        x: 0;
+        y: i * 6px;
+        width: 1px;
+        height: min(3px, root.height - self.y);
+        background: root.color;
+    }
+
+    for i in root.down: Rectangle {
+        x: root.width - 1px;
+        y: i * 6px;
+        width: 1px;
+        height: min(3px, root.height - self.y);
+        background: root.color;
     }
 }
 
@@ -176,6 +211,70 @@ component Soc {
     }
 }
 
+// Input per source: a slot for shore under a plug, then one per MPPT,
+// numbered above. In use on this side: a track filled on that source's own
+// scale. Allocated elsewhere, unplugged or no data: a dashed outline.
+component InputSlots {
+    in property <bool> port;
+    in property <SideView> view;
+    // Laid out on the whole page, like the tracks
+    width: 320px;
+    height: 240px;
+
+    for n in 5: slot := Rectangle {
+        property <float> a: !root.view.online ? -1 : n == 0 ? root.view.charger-a : root.view.mppt-a[n - 1];
+        property <float> full: n == 0 ? Scale.shore-slot-a : Scale.solar-slot-a;
+        property <bool> away: self.a < 0;
+        property <length> fill: self.away ? 0 : min(self.a, self.full) / self.full * Scale.slot-w;
+        property <color> label-color: self.away ? Palette.edge : Palette.dim;
+        x: Scale.slot-x(root.port, n);
+        y: Scale.input-y - 14px;
+        width: Scale.slot-w;
+        height: 26px;
+
+        if n == 0: ShoreIcon {
+            x: (parent.width - self.width) / 2;
+            y: 2px;
+            height: 9px;
+            fill: slot.label-color;
+        }
+
+        if n > 0: Label {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            horizontal-alignment: center;
+            text: n;
+            color: slot.label-color;
+        }
+
+        if slot.away: Dashed {
+            y: 14px;
+            width: slot.width;
+            height: 12px;
+            color: Palette.edge;
+        }
+
+        if !slot.away: Rectangle {
+            y: 14px;
+            height: 12px;
+            background: Palette.track;
+            clip: true;
+
+            Rectangle {
+                border-width: 1px;
+                border-color: Palette.edge;
+            }
+
+            Rectangle {
+                x: root.port ? parent.width - self.width : 0;
+                width: slot.fill;
+                background: n == 0 ? Palette.shore : Palette.solar;
+            }
+        }
+    }
+}
+
 // "4:00 to empty" under the SOC: the time stands out, the rest is quieter
 component Eta {
     in property <bool> port;
@@ -242,6 +341,9 @@ component Footer {
 export component PowerPage {
     in property <SideView> port;
     in property <SideView> stbd;
+    // The load bar's full scale (vcu_core::AutoScale)
+    in property <int> scale-max: 100;
+    property <bool> combined: Prefs.input == 1;
     width: 320px;
     height: 240px;
 
@@ -293,83 +395,74 @@ export component PowerPage {
         view: root.stbd;
     }
 
-    // Solar
-    Track {
-        x: Scale.port-x;
-        y: Scale.solar-y;
+    // Input: per source, or combined (shore, then solar) on the load scale
+    // with its axis above the track
+    if !root.combined: InputSlots {
         port: true;
-        a: root.port.online ? root.port.solar-a : 0;
-        a-color: Palette.solar;
-        full-scale: Scale.solar-full;
+        view: root.port;
     }
 
-    Track {
+    if !root.combined: InputSlots {
+        port: false;
+        view: root.stbd;
+    }
+
+    if root.combined: Track {
+        x: Scale.port-x;
+        y: Scale.input-y;
+        port: true;
+        parts: root.port.online ? [max(0, root.port.charger-a), root.port.solar-a] : [];
+        colors: [Palette.shore, Palette.solar];
+        full-scale: root.scale-max;
+    }
+
+    if root.combined: Track {
         x: Scale.stbd-x;
-        y: Scale.solar-y;
-        a: root.stbd.online ? root.stbd.solar-a : 0;
-        a-color: Palette.solar;
-        full-scale: Scale.solar-full;
+        y: Scale.input-y;
+        parts: root.stbd.online ? [max(0, root.stbd.charger-a), root.stbd.solar-a] : [];
+        colors: [Palette.shore, Palette.solar];
+        full-scale: root.scale-max;
     }
 
-    // Load: propulsion, then house up to the total out
+    for end[i] in [root.scale-max, 0, 0, root.scale-max]: Label {
+        visible: root.combined;
+        x: i < 2 ? Scale.port-x + (i == 0 ? 0 : Scale.track-w - self.width) : Scale.stbd-x + (i == 2 ? 0 : Scale.track-w - self.width);
+        y: Scale.input-y - 14px;
+        text: end;
+    }
+
+    // Load: the house (base, heater, inverter) stays put at the inner end;
+    // the motor, which swings with the throttle, goes outermost
     Track {
         x: Scale.port-x;
         y: Scale.load-y;
         port: true;
-        a: root.port.online ? root.port.propulsion-a : 0;
-        b: root.port.online ? root.port.out-a : 0;
-        a-color: Palette.load;
-        b-color: Palette.house;
-        mark-end: true;
+        parts: root.port.online ? [root.port.base-a, root.port.heater-a, root.port.inverter-a, root.port.propulsion-a] : [];
+        colors: [Palette.base, Palette.heater, Palette.inverter, Palette.load];
+        full-scale: root.scale-max;
     }
 
     Track {
         x: Scale.stbd-x;
         y: Scale.load-y;
-        a: root.stbd.online ? root.stbd.propulsion-a : 0;
-        b: root.stbd.online ? root.stbd.out-a : 0;
-        a-color: Palette.load;
-        b-color: Palette.house;
-        mark-end: true;
+        parts: root.stbd.online ? [root.stbd.base-a, root.stbd.heater-a, root.stbd.inverter-a, root.stbd.propulsion-a] : [];
+        colors: [Palette.base, Palette.heater, Palette.inverter, Palette.load];
+        full-scale: root.scale-max;
     }
 
     // Row labels, centered between the tracks
-    for label[i] in ["SOLAR", "LOAD"]: Label {
+    for label[i] in ["INPUT", "LOAD"]: Label {
         x: 160px - self.width / 2;
-        y: (i == 0 ? Scale.solar-y : Scale.load-y);
+        y: (i == 0 ? Scale.input-y : Scale.load-y);
         text: label;
     }
 
     // Scale ends only: full scale at the outer end of each track, 0 at the
-    // inner end. Solar has its own scale, with its axis above the track.
-    Label {
-        x: Scale.port-x;
-        y: Scale.solar-y - 14px;
-        text: Scale.solar-full;
-    }
-
-    Label {
-        x: Scale.port-x + Scale.track-w - self.width;
-        y: Scale.solar-y - 14px;
-        text: "0";
-    }
-
-    Label {
-        x: Scale.stbd-x;
-        y: Scale.solar-y - 14px;
-        text: "0";
-    }
-
-    Label {
-        x: Scale.stbd-x + Scale.track-w - self.width;
-        y: Scale.solar-y - 14px;
-        text: Scale.solar-full;
-    }
-
+    // inner end
     Label {
         x: Scale.port-x;
         y: 186px;
-        text: Scale.load-full;
+        text: root.scale-max;
     }
 
     Label {
@@ -387,7 +480,7 @@ export component PowerPage {
     Label {
         x: Scale.stbd-x + Scale.track-w - self.width;
         y: 186px;
-        text: Scale.load-full;
+        text: root.scale-max;
     }
 
     Footer {

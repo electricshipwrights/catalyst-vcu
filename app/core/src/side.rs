@@ -1,7 +1,8 @@
-//! One battery side (one CAN bus): ports of ui/src/display/sideState.ts and the
-//! 10 Hz loop in useSide.ts.
+//! One battery side, from the frames on the gateway buses that concern it:
+//! ports of ui/src/display/sideState.ts and the 10 Hz loop in useSide.ts.
 
 use crate::filters::{EtaHold, StepFilter};
+use crate::gateway::{Allocation, DEFAULT_ALLOCATION, MPPT_ALLOCATION, SideName, decode_allocation};
 use crate::protocol::*;
 
 const BMS_STALE_MS: f64 = 2000.0;
@@ -14,7 +15,11 @@ pub struct Currents {
     pub solar_a: Option<f64>,
     pub charger_a: Option<f64>,
     pub propulsion_a: Option<f64>,
+    /// Everything but propulsion, derived.
     pub house_a: f64,
+    /// The parts of `house_a` that report themselves (on CAN6); `None` when silent.
+    pub heater_a: Option<f64>,
+    pub inverter_a: Option<f64>,
 }
 
 /// A side with a live BMS.
@@ -26,6 +31,8 @@ pub struct Live {
     pub limits: Option<OrionLimits>,
     pub currents: Currents,
     pub shore: bool,
+    /// MPPTs 1–4: current from each one allocated to this side, `None` for the rest.
+    pub mppt_a: [Option<f64>; 4],
 }
 
 /// What the display draws each tick for a side that's online.
@@ -49,6 +56,9 @@ fn fresh<T: Copy>(x: &Option<Stamped<T>>, now: f64, ms: f64) -> Option<T> {
 /// Latest decoded frames, as `Raw` in sideState.ts.
 #[derive(Default)]
 struct Raw {
+    side: SideName,
+    /// Which side each MPPT feeds, from the gateway; `DEFAULT_ALLOCATION` until it says.
+    allocation: Option<Allocation>,
     pack: Option<Stamped<OrionPack>>,
     limits: Option<Stamped<OrionLimits>>,
     /// Per MPPT source address, in first-seen order like the prototype's Map.
@@ -56,14 +66,22 @@ struct Raw {
     motor: Option<Stamped<f64>>,
     charger: Option<Stamped<ElconStatus>>,
     house: Option<Stamped<f64>>,
+    heater: Option<Stamped<f64>>,
+    inverter: Option<Stamped<f64>>,
 }
 
 impl Raw {
+    /// Whether an MPPT (by source address) feeds this side.
+    fn mine(&self, source: u8) -> bool {
+        let i = MPPT_SOURCES.iter().position(|&s| s == source);
+        i.is_some_and(|i| self.allocation.unwrap_or(DEFAULT_ALLOCATION)[i] == Some(self.side))
+    }
+
     fn solar_sum(&self, now: f64) -> Option<f64> {
         let mut live = self
             .solar
             .iter()
-            .filter(|(_, s)| now - s.at < DEVICE_STALE_MS)
+            .filter(|(src, s)| self.mine(*src) && now - s.at < DEVICE_STALE_MS)
             .peekable();
         live.peek()?;
         Some(live.fold(0.0, |sum, (_, s)| sum + s.value))
@@ -112,9 +130,23 @@ impl Raw {
                 Some(entry) => entry.1 = stamped,
                 None => self.solar.push((source, stamped)),
             }
-            if fresh(&self.charger, at, CHARGER_STALE_MS).is_none() {
+            if self.mine(source) && fresh(&self.charger, at, CHARGER_STALE_MS).is_none() {
                 self.sample_house(at);
             }
+        } else if ext && n2k_pgn(id) == PGN_BATTERY_STATUS {
+            let source = n2k_source(id);
+            let slot = if source == HEATER_SOURCES[self.side as usize] {
+                &mut self.heater
+            } else if source == INVERTER_SOURCES[self.side as usize] {
+                &mut self.inverter
+            } else {
+                return;
+            };
+            if let Some(a) = decode_battery_status(data).and_then(|b| b.a) {
+                *slot = Some(Stamped { value: a, at });
+            }
+        } else if !ext && id == MPPT_ALLOCATION {
+            self.allocation = Some(decode_allocation(data));
         }
     }
 
@@ -143,14 +175,24 @@ impl Raw {
                 charger_a,
                 propulsion_a,
                 house_a,
+                heater_a: fresh(&self.heater, now, DEVICE_STALE_MS),
+                inverter_a: fresh(&self.inverter, now, DEVICE_STALE_MS),
             },
             shore: charger.is_some_and(|c| c.flags & ELCON_FLAG_INPUT_VOLTAGE == 0),
+            mppt_a: MPPT_SOURCES.map(|src| {
+                if !self.mine(src) {
+                    return None;
+                }
+                let s = self.solar.iter().find(|(s, _)| *s == src)?;
+                (now - s.1.at < DEVICE_STALE_MS).then_some(s.1.value)
+            }),
         })
     }
 }
 
-/// Decoded state for one bus. Feed it frames with `ingest`, and call `tick`
-/// at 10 Hz (the smoothing time constants assume a steady tick).
+/// Decoded state for one side. Feed it the frames from the buses that concern
+/// it (`gateway::concerns`) with `ingest`, and call `tick` at 10 Hz (the
+/// smoothing time constants assume a steady tick).
 #[derive(Default)]
 pub struct Side {
     raw: Raw,
@@ -158,10 +200,18 @@ pub struct Side {
     charger: StepFilter,
     propulsion: StepFilter,
     house: StepFilter,
+    heater: StepFilter,
+    inverter: StepFilter,
     eta: EtaHold,
 }
 
 impl Side {
+    pub fn new(side: SideName) -> Self {
+        let mut s = Self::default();
+        s.raw.side = side;
+        s
+    }
+
     pub fn ingest(&mut self, id: u32, ext: bool, data: &[u8], at: f64) {
         self.raw.ingest(id, ext, data, at);
     }
@@ -174,6 +224,8 @@ impl Side {
                 &mut self.charger,
                 &mut self.propulsion,
                 &mut self.house,
+                &mut self.heater,
+                &mut self.inverter,
             ] {
                 f.clear();
             }
@@ -186,6 +238,8 @@ impl Side {
             charger_a: self.charger.push(now, c.charger_a),
             propulsion_a: self.propulsion.push(now, c.propulsion_a),
             house_a: self.house.push(now, Some(c.house_a)).unwrap_or(c.house_a),
+            heater_a: self.heater.push(now, c.heater_a),
+            inverter_a: self.inverter.push(now, c.inverter_a),
         };
         let smooth_net_a = smooth.solar_a.unwrap_or(0.0) + smooth.charger_a.unwrap_or(0.0)
             - smooth.propulsion_a.unwrap_or(0.0)

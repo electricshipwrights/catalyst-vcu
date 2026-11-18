@@ -68,7 +68,8 @@ export type GatewayStatus = {
 
 export type ServerStatus = { type: 'status'; buses: BusStatus[]; gateway: GatewayStatus; logs: string[]; speed: number }
 
-export type ServerMsg = { type: 'frames'; bus: BusName; frames: WireFrame[] } | ServerStatus
+// Text messages; the frames themselves go as binary (the gateway stream)
+export type ServerMsg = ServerStatus
 
 export type ClientMsg =
   | { type: 'source'; bus: BusName; source: 'sim' | 'off' }

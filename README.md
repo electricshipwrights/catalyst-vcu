@@ -44,7 +44,7 @@ The display's time to empty counts down to the 9% reserve, so "empty" means no u
 
 - **Range on the display:** for example "≈ 110 nm at this speed" next to time to empty, working out speed from the current draw with the curve above.
 - **Modules view** (VIEW 2): each side's 16 module voltages from the Orion BMS's cell broadcast, with the spread and any outlier.
-- **Board on the gateway:** sync the Slint app with the prototype (gateway buses, MPPT slots), and have it listen to the router's UDP instead of `can0`/`can1`. `pnpm bus --udp` stands in for the router.
+- **Board on the gateway:** have the board app listen to the router's UDP instead of `can0`/`can1` (the decoder is in `app/core/src/gateway.rs`). `pnpm bus --udp` stands in for the router.
 
 ### CAN buses
 
@@ -59,4 +59,4 @@ The gateway (which made the Oct 6 log) has one bus per device group:
 | CAN5 | Starboard motor controller, throttle/helm station |
 | CAN6 | NMEA 2000, including all four MPPTs |
 
-The CoreMP135 has only two CAN ports, so the display takes the gateway's raw CAN frames over Ethernet instead (a PCAN-Router Pro FD broadcasting cannelloni UDP; firmware in `pcan-can-eth-gateway-main/`). The React prototype already works this way; the board app still reads `can0`/`can1`. See [GATEWAY.md](GATEWAY.md).
+The CoreMP135 has only two CAN ports, so the display takes the gateway's raw CAN frames over Ethernet instead (a PCAN-Router Pro FD broadcasting cannelloni UDP; firmware in `pcan-can-eth-gateway-main/`). Both displays in the browser already work this way; the board app still reads `can0`/`can1`. See [GATEWAY.md](GATEWAY.md).

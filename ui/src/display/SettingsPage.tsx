@@ -1,4 +1,4 @@
-import { SCALES, THEMES, setScale, setTheme, useScale, useTheme } from './settings'
+import { INPUT_VIEWS, THEMES, setInputView, setTheme, useInputView, useTheme } from './settings'
 
 function Choice<T extends string>(props: {
   label: string
@@ -25,7 +25,7 @@ export function SettingsPage() {
   return (
     <div className="page settings">
       <Choice label="THEME" values={THEMES} value={useTheme()} onChange={setTheme} />
-      <Choice label="SCALE" values={SCALES} value={useScale()} onChange={setScale} />
+      <Choice label="INPUT" values={INPUT_VIEWS} value={useInputView()} onChange={setInputView} />
     </div>
   )
 }

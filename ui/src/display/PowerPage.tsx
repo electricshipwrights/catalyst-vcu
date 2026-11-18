@@ -1,15 +1,14 @@
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
 import type { BusName } from "../../shared/bus";
-import { SCALE_MAX_A, SHORE_SLOT_A, SOLAR_SLOT_A, powerView, type PowerView } from "./power";
-import { useScale, useSmoothing } from "./settings";
+import { AutoScale } from "./autoScale";
+import { SHORE_SLOT_A, SOLAR_SLOT_A, powerView, type PowerView } from "./power";
+import { useInputView, useSmoothing } from "./settings";
 import { useSide } from "./useSide";
 
 const TRACK_W = 124;
 const TRACK_X: Record<BusName, number> = { port: 10, stbd: 186 };
-// Three bars, 9px tall (.track in display.css), 16px apart
-const INPUT_Y = 144;
-const HOUSE_Y = 160;
-const MOTOR_Y = 176;
+const INPUT_Y = 148;
+const LOAD_Y = 170;
 // Input per source: shore at the inner end, then MPPT 1–4
 const SLOTS = 5;
 const SLOT_GAP = 4;
@@ -20,7 +19,7 @@ type SegKind = "solar" | "shore" | "base" | "heater" | "inverter" | "propulsion"
 type Seg = { from: number; to: number; kind: SegKind };
 
 // Amps to pixels along a track whose full scale is `max`
-const px = (a: number, max = SCALE_MAX_A) =>
+const px = (a: number, max: number) =>
   (Math.min(Math.max(a, 0), max) / max) * TRACK_W;
 
 // Parts stacked end to end from the inner end
@@ -34,19 +33,16 @@ function inputSegs(v: PowerView): Seg[] {
   return stack([["shore", v.chargerA ?? 0], ["solar", v.solarA]]);
 }
 
-// The house load from the inside out: base, then the parts that report
-function houseSegs(v: PowerView): Seg[] {
+// The house load stays put at the inner end (base, then steady, then
+// intermittent); the motor, which swings with the throttle, goes outermost
+function loadSegs(v: PowerView): Seg[] {
   if (!v.online) return [];
   return stack([
     ["base", v.baseA],
     ["heater", v.heaterA],
     ["inverter", v.inverterA],
+    ["propulsion", v.propulsionA],
   ]);
-}
-
-function motorSegs(v: PowerView): Seg[] {
-  if (!v.online) return [];
-  return stack([["propulsion", v.propulsionA]]);
 }
 
 // max: the track's full scale in amps
@@ -54,12 +50,12 @@ function Track({
   side,
   top,
   segs,
-  max = SCALE_MAX_A,
+  max,
 }: {
   side: BusName;
   top: number;
   segs: Seg[];
-  max?: number;
+  max: number;
 }) {
   return (
     <div
@@ -252,22 +248,27 @@ export function PowerPage() {
   const smoothing = useSmoothing();
   const port = powerView(useSide("port"), smoothing);
   const stbd = powerView(useSide("stbd"), smoothing);
-  // Relative: input per source; absolute: one bar on the load scale
-  const absolute = useScale() === "absolute";
+  // Per source: a slot each for shore and the MPPTs; combined: one bar on the load scale
+  const combined = useInputView() === "combined";
+  // The scale fits the longest bar on either side
+  const autoScale = useRef(new AutoScale()).current;
+  const online = [port, stbd].flatMap((v) => (v.online ? [v] : []));
+  const need = online.length ? Math.max(...online.map((v) => (combined ? Math.max(v.outA, v.inA) : v.outA))) : null;
+  const max = autoScale.push(performance.now(), need);
   return (
     <div className="page power">
       <SideHead side="port" v={port} />
       <SideHead side="stbd" v={stbd} />
 
-      {absolute ? (
+      {combined ? (
         <>
-          {/* Solar's axis is above its track */}
+          {/* The input's axis is above its track */}
           <div className="ticks" style={{ top: INPUT_Y - 13 }}>
-            <Ticks side="port" max={SCALE_MAX_A} />
-            <Ticks side="stbd" max={SCALE_MAX_A} />
+            <Ticks side="port" max={max} />
+            <Ticks side="stbd" max={max} />
           </div>
-          <Track side="port" top={INPUT_Y} segs={inputSegs(port)} />
-          <Track side="stbd" top={INPUT_Y} segs={inputSegs(stbd)} />
+          <Track side="port" top={INPUT_Y} segs={inputSegs(port)} max={max} />
+          <Track side="stbd" top={INPUT_Y} segs={inputSegs(stbd)} max={max} />
         </>
       ) : (
         <>
@@ -279,21 +280,15 @@ export function PowerPage() {
         INPUT
       </div>
 
-      <Track side="port" top={HOUSE_Y} segs={houseSegs(port)} />
-      <Track side="stbd" top={HOUSE_Y} segs={houseSegs(stbd)} />
-      <div className="row-label" style={{ top: HOUSE_Y }}>
-        HOUSE
-      </div>
-
-      <Track side="port" top={MOTOR_Y} segs={motorSegs(port)} />
-      <Track side="stbd" top={MOTOR_Y} segs={motorSegs(stbd)} />
-      <div className="row-label" style={{ top: MOTOR_Y }}>
-        MOTOR
+      <Track side="port" top={LOAD_Y} segs={loadSegs(port)} max={max} />
+      <Track side="stbd" top={LOAD_Y} segs={loadSegs(stbd)} max={max} />
+      <div className="row-label" style={{ top: LOAD_Y }}>
+        LOAD
       </div>
 
       <div className="ticks">
-        <Ticks side="port" max={SCALE_MAX_A} />
-        <Ticks side="stbd" max={SCALE_MAX_A} />
+        <Ticks side="port" max={max} />
+        <Ticks side="stbd" max={max} />
       </div>
 
       <Footer side="port" v={port} />

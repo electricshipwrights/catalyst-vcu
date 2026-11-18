@@ -55,10 +55,10 @@ export const setRenderer = renderer.set
 
 
 
-// Bar scales: relative gives solar its own scale; absolute puts solar on the
-// load scale so the two bars compare directly
-export const SCALES = ['relative', 'absolute'] as const
-export type Scale = (typeof SCALES)[number]
-const scale = createSetting('vcu.scale', SCALES, 'relative')
-export const useScale = scale.use
-export const setScale = scale.set
+// The input row: per source gives shore and each MPPT a slot on its own
+// scale; combined is one bar on the load scale, so input and load compare
+export const INPUT_VIEWS = ['per source', 'combined'] as const
+export type InputView = (typeof INPUT_VIEWS)[number]
+const inputView = createSetting('vcu.input', INPUT_VIEWS, 'per source')
+export const useInputView = inputView.use
+export const setInputView = inputView.set

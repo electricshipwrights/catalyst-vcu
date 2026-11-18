@@ -23,14 +23,7 @@ export function GatewayPanel({ status }: { status?: GatewayStatus }) {
         <h2>GATEWAY</h2>
         <span className="sub">PCAN-Router Pro FD</span>
       </header>
-      <div className="seg-control">
-        {(['sim', 'router'] as const).map((k) => (
-          <button key={k} aria-pressed={source === k} disabled={!status} onClick={() => send({ type: 'gateway', source: k })}>
-            {k === 'sim' ? 'simulated' : 'router'}
-          </button>
-        ))}
-      </div>
-      <p className="quiet">{note}</p>
+      {/* The bus rows first, so the wires meet the panel near its top */}
       <ul className="gw-buses">
         {BUS_LIST.map((n) => (
           <li key={n} data-bus={n}>
@@ -42,6 +35,14 @@ export function GatewayPanel({ status }: { status?: GatewayStatus }) {
           </li>
         ))}
       </ul>
+      <div className="seg-control">
+        {(['sim', 'router'] as const).map((k) => (
+          <button key={k} aria-pressed={source === k} disabled={!status} onClick={() => send({ type: 'gateway', source: k })}>
+            {k === 'sim' ? 'simulated' : 'router'}
+          </button>
+        ))}
+      </div>
+      <p className="quiet">{note}</p>
       <Traffic bus={shown} />
     </section>
   )

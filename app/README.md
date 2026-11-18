@@ -8,7 +8,7 @@ display/   vcu-display: the Slint UI (ui/*.slint) plus the device binary
   src/lib.rs        shared glue: 10 Hz readings → UI
   src/main.rs       device entry point; `--screenshot` on any host
   src/device/       CoreMP135: framebuffer, touch, SocketCAN, settings file
-web/       vcu-web: WASM entry point: renders onto a canvas, fed by the bench's /bus WebSocket
+web/       vcu-web: WASM entry point: renders onto a canvas, fed the gateway stream from the bench's /bus WebSocket
 ```
 
 ## Web (day-to-day development)
@@ -42,8 +42,8 @@ Run these from `app/`, with the board plugged in over USB-C. The scripts find it
 - **Log:** the display logs to `/var/log/vcu-display.log`.
 - **Crashes:** nothing restarts the display if it exits; reboot or run `install.py` again.
 - **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
-- **Buses:** `can0` is port and `can1` is starboard. This predates the gateway (`../GATEWAY.md`); the app will move to the router's UDP stream.
-- **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `smoothing=instant`), which is re-read when it changes. Picking a theme on the SETTINGS view (button C) saves it there, so it survives reboots.
+- **Buses:** `can0` is port and `can1` is starboard, each with all of that side's devices. This predates the gateway (`../GATEWAY.md`); the app will move to the router's UDP stream. MPPT 1–2 (sources 0x22–0x23) count for port and 3–4 for starboard unless an allocation frame says otherwise.
+- **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `input=combined`, `smoothing=instant`), which is re-read when it changes. Picking a theme or input view on the SETTINGS view (button C) saves it there, so it survives reboots.
 - **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
 
 To see live data without batteries, simulate the CAN buses:
@@ -55,8 +55,8 @@ To see live data without batteries, simulate the CAN buses:
 ../tools/cansim.py stop           # stop the replay, buses back to normal
 ```
 
-- **demo** (the default) steps through the bench's presets, 30 s each with 3 s ramps between: cruise, full throttle, moored with sun, shore power, night. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Both sides are always online. It's generated in `cansim.py` itself.
-- **parity** replays the test scenario (`core/tests/fixtures/parity.json`, 220 s), with starboard 20 s behind. It goes offline and quiet on purpose, to exercise the edge cases: a BMS dropout, devices going stale, near-zero currents. It ends with full throttle from 180 s. To change it, edit `ui/scripts/parity.ts` and run `pnpm parity` in `ui/`.
+- **demo** (the default) steps through the bench's presets, 30 s each with 3 s ramps between: cruise, full throttle, moored with sun, shore power, night. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Each side's solar comes from its own two MPPTs. Both sides are always online. It's generated in `cansim.py` itself.
+- **parity** replays the test scenario (`core/tests/fixtures/parity.json`, 220 s), with starboard 20 s behind, its frames mirrored onto starboard's MPPT, heater and inverter addresses. It goes offline and quiet on purpose, to exercise the edge cases: a BMS dropout, devices going stale, near-zero currents. It ends with full throttle from 180 s. To change it, edit `ui/scripts/parity.ts` and run `pnpm parity` in `ui/`.
 
 Either one puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
 

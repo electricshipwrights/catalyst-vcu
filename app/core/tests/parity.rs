@@ -2,7 +2,7 @@
 //! prototype's TypeScript) and checks every 10 Hz reading and power view.
 
 use serde_json::Value;
-use vcu_core::{PowerView, Side, Smoothing, power_view};
+use vcu_core::{AutoScale, PowerView, Side, SideName, Smoothing, power_view};
 
 fn hex(s: &str) -> Vec<u8> {
     (0..s.len())
@@ -44,7 +44,12 @@ fn view_json(v: Option<PowerView>) -> Value {
             v.out_a,
             v.propulsion_a,
             v.net_a,
-            v.eta.text()
+            v.eta.text(),
+            v.mppt_a,
+            v.charger_a,
+            v.base_a,
+            v.heater_a,
+            v.inverter_a
         ]),
     }
 }
@@ -56,7 +61,8 @@ fn matches_the_typescript_prototype() {
     let ticks = fixture["ticks"].as_array().unwrap();
     assert!(ticks.len() > 1000);
 
-    let mut side = Side::default();
+    let mut side = Side::new(SideName::Port);
+    let mut scale = AutoScale::default();
     let mut cursor = 0;
     for tick in ticks {
         let now = tick[0].as_f64().unwrap();
@@ -82,10 +88,14 @@ fn matches_the_typescript_prototype() {
                     c.charger_a,
                     c.propulsion_a,
                     Some(c.house_a),
+                    c.heater_a,
+                    c.inverter_a,
                     s.solar_a,
                     s.charger_a,
                     s.propulsion_a,
                     Some(s.house_a),
+                    s.heater_a,
+                    s.inverter_a,
                     r.eta_net_a,
                 ];
                 for (i, (g, w)) in got.iter().zip(want).enumerate() {
@@ -97,6 +107,10 @@ fn matches_the_typescript_prototype() {
             }
             (r, w) => panic!("t={now}: online mismatch, rust {r:?}, typescript {w:?}"),
         }
+
+        let smooth = power_view(reading.as_ref(), Smoothing::Smooth);
+        let max = scale.push(now, smooth.as_ref().map(|v| f64::from(v.out_a)));
+        assert_eq!(Some(max), tick[4].as_f64(), "t={now} scale");
 
         for (smoothing, col) in [(Smoothing::Smooth, 2), (Smoothing::Instant, 3)] {
             let got = view_json(power_view(reading.as_ref(), smoothing));

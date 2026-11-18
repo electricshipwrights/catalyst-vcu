@@ -1,8 +1,10 @@
 //! The VCU display in the browser. It runs the device's pipeline (Slint's
 //! software renderer into an RGB565 buffer) and copies each frame onto a
-//! 320×240 canvas, so the page shows the LCD's exact pixels. It reads raw
-//! frames from the bench's `/bus` WebSocket (ui/server) and follows the bench's
-//! `vcu.theme` and `vcu.smoothing` settings in localStorage.
+//! 320×240 canvas, so the page shows the LCD's exact pixels. It reads the
+//! gateway stream from the bench's `/bus` WebSocket (ui/server): binary
+//! messages of a bus number then a cannelloni packet, as the router sends over
+//! UDP. It follows the bench's `vcu.theme`, `vcu.input` and `vcu.smoothing`
+//! settings in localStorage.
 //!
 //! Built by `pnpm build:wasm` in ui/; see ui/src/slint/SlintDisplay.tsx.
 
@@ -12,39 +14,20 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
-use serde::Deserialize;
 use vcu_display::slint::platform::software_renderer::{
     MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel,
 };
 use vcu_display::slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
 use vcu_display::slint::{self, ComponentHandle, LogicalPosition, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::Smoothing;
+use vcu_display::vcu_core::gateway::decode_cannelloni;
 use vcu_display::{
-    Display, HEIGHT, Palette, Prefs, Sides, WIDTH, drive, parse_scale, parse_smoothing,
-    parse_theme, scale_name, theme_name,
+    Display, HEIGHT, Palette, Prefs, Sides, WIDTH, drive, input_name, parse_input,
+    parse_smoothing, parse_theme, theme_name,
 };
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData, PointerEvent};
-
-/// Messages from ui/server (`ServerMsg` in ui/shared/bus.ts); only frames matter here.
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum ServerMsg {
-    Frames {
-        bus: String,
-        frames: Vec<WireFrame>,
-    },
-    #[serde(other)]
-    Other,
-}
-
-#[derive(Deserialize)]
-struct WireFrame {
-    id: u32,
-    ext: bool,
-    data: String,
-}
 
 fn window() -> web_sys::Window {
     web_sys::window().expect("no window")
@@ -52,12 +35,6 @@ fn window() -> web_sys::Window {
 
 fn now_ms() -> f64 {
     window().performance().expect("no performance").now()
-}
-
-fn hex(s: &str) -> Vec<u8> {
-    (0..s.len() / 2)
-        .filter_map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok())
-        .collect()
 }
 
 /// Opens the bus WebSocket and reconnects a second after it closes.
@@ -78,25 +55,21 @@ fn connect(sides: Rc<RefCell<Sides>>) {
         reconnect();
         return;
     };
+    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
+    // Text messages are the bench's status; only the binary gateway stream matters here
     let on_message =
         Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |e: web_sys::MessageEvent| {
-            let Some(text) = e.data().as_string() else {
+            let Ok(buf) = e.data().dyn_into::<js_sys::ArrayBuffer>() else {
                 return;
             };
-            let Ok(ServerMsg::Frames { bus, frames }) = serde_json::from_str(&text) else {
+            let msg = js_sys::Uint8Array::new(&buf).to_vec();
+            let Some((&bus, packet)) = msg.split_first() else {
                 return;
             };
             let now = now_ms();
             let mut sides = sides.borrow_mut();
-            let side = match bus.as_str() {
-                "port" => &mut sides.port,
-                "stbd" => &mut sides.stbd,
-                _ => return,
-            };
-            for f in frames {
-                side.ingest(f.id, f.ext, &hex(&f.data), now);
-            }
+            decode_cannelloni(packet, |id, ext, data| sides.ingest(bus, id, ext, data, now));
         });
     ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
     on_message.forget();
@@ -121,12 +94,12 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
             ui.global::<Palette>().set_theme(t);
         }
         if let Some(s) = storage
-            .get_item("vcu.scale")
+            .get_item("vcu.input")
             .ok()
             .flatten()
-            .and_then(|v| parse_scale(&v))
+            .and_then(|v| parse_input(&v))
         {
-            ui.global::<Prefs>().set_scale(s);
+            ui.global::<Prefs>().set_input(s);
         }
         if let Some(s) = storage
             .get_item("vcu.smoothing")
@@ -288,7 +261,7 @@ pub fn start(canvas: HtmlCanvasElement) -> Result<(), JsValue> {
     let smoothing = Rc::new(Cell::new(Smoothing::default()));
     let settings = watch_settings(&ui, smoothing.clone());
     ui.on_theme_selected(|theme| save_setting("vcu.theme", theme_name(theme)));
-    ui.on_scale_selected(|scale| save_setting("vcu.scale", scale_name(scale)));
+    ui.on_input_selected(|input| save_setting("vcu.input", input_name(input)));
     let driver = drive(&ui, sides.clone(), smoothing, now_ms);
     connect(sides);
     ui.show().map_err(|e| err(&e))?;

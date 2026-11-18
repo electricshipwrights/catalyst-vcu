@@ -28,7 +28,14 @@ BITRATE = 250000
 
 # Frame formats, as in ui/shared/protocol.ts
 ORION_PACK, ORION_LIMITS, MOTOR_STATUS, ELCON_STATUS = 0x6B0, 0x6B1, 0x700, 0x18FF50E5
-PGN_BATTERY_STATUS, MPPT_SOURCE = 127508, 0x22
+PGN_BATTERY_STATUS = 127508
+# MPPT 1–2 feed port and 3–4 starboard (the display's default allocation)
+MPPT_SOURCES = {"can0": (0x22, 0x23), "can1": (0x24, 0x25)}
+MPPT_ALLOCATION = 0x7F0
+# Port's and starboard's NMEA 2000 sources, for mirroring port's frames onto can1:
+# MPPTs, then the inverter and heater (ui/shared/protocol.ts)
+MIRROR = {0x22: 0x24, 0x23: 0x25, 0x30: 0x31, 0x32: 0x33}
+MIRROR |= {v: k for k, v in MIRROR.items()}
 RELAYS = 0xC04B
 
 
@@ -62,7 +69,8 @@ def elcon_status(amps, volts):
     return struct.pack(">HHB", clamp_int(volts * 10, 0, 0xFFFF), clamp_int(amps * 10, 0, 0xFFFF), 0) + bytes(3)
 
 
-N2K_ID = (6 << 26) | (PGN_BATTERY_STATUS << 8) | MPPT_SOURCE
+def n2k_id(source):
+    return (6 << 26) | (PGN_BATTERY_STATUS << 8) | source
 
 # Demo: (solar, propulsion, house, charger) per step, from the bench's presets
 STEPS = [
@@ -98,7 +106,8 @@ def demo():
             frames = [(ORION_PACK, False, pack_status(pack_a, 52 + soc / 50, soc)), (MOTOR_STATUS, False, motor_status(prop))]
             if tick % 10 == 0:
                 frames.append((ORION_LIMITS, False, pack_limits()))
-                frames.append((N2K_ID, True, battery_status(solar, tick // 10)))
+                for source in MPPT_SOURCES[iface]:  # the side's two MPPTs share its solar
+                    frames.append((n2k_id(source), True, battery_status(solar / 2, tick // 10)))
                 if STEPS[step][3]:  # charger only reports on shore power
                     frames.append((ELCON_STATUS, True, elcon_status(charger, 54.2)))
             for n, (can_id, ext, data) in enumerate(frames):
@@ -109,12 +118,23 @@ def demo():
     return lines
 
 
+def mirror(can_id, ext, data):
+    """Port's frame as starboard's: its NMEA 2000 sources, and allocations with
+    port and starboard swapped."""
+    if ext and (can_id >> 8) & 0x3FFFF == PGN_BATTERY_STATUS and can_id & 0xFF in MIRROR:
+        return can_id & ~0xFF | MIRROR[can_id & 0xFF], data
+    if not ext and can_id == MPPT_ALLOCATION:
+        return can_id, bytes({1: 2, 2: 1}.get(b, b) for b in bytes.fromhex(data)).hex().upper()
+    return can_id, data
+
+
 def parity():
-    """The fixture's frames on both buses, starboard 20 s behind."""
+    """The fixture's (port's) frames on can0, and mirrored onto can1 20 s behind."""
     lines = []
-    for at, can_id, ext, data in json.loads(FIXTURE.read_text())["frames"]:
-        hex_id = f"{can_id:08X}" if ext else f"{can_id:03X}"
+    for at, port_id, ext, port_data in json.loads(FIXTURE.read_text())["frames"]:
         for iface, delay in (("can0", 0), ("can1", 20000)):
+            can_id, data = (port_id, port_data) if iface == "can0" else mirror(port_id, ext, port_data)
+            hex_id = f"{can_id:08X}" if ext else f"{can_id:03X}"
             t = (at + delay) / 1000
             lines.append((t, f"({t:.6f}) {iface} {hex_id}#{data}"))
     lines.sort()

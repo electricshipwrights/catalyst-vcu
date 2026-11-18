@@ -60,22 +60,25 @@ export function Check({
   )
 }
 
-// One CAN bus's devices; the harness wires it to that bus's gateway row
+// One CAN bus's devices; the harness wires it to that bus's gateway row,
+// from beside the header unless wireAt says the bottom
 export function BusBox({
   bus,
   title,
   fps,
   assumed,
+  wireAt,
   children,
 }: {
   bus: number
   title: string
   fps: Record<number, number>
   assumed?: boolean
+  wireAt?: 'bottom'
   children?: ReactNode
 }) {
   return (
-    <section className="box bus-box" data-wire={bus}>
+    <section className="box bus-box" data-wire={bus} data-wire-at={wireAt}>
       <header>
         <h2>{title}</h2>
         <span className="sub">
@@ -238,7 +241,14 @@ export function SideColumn({
         {source === 'off' && <p className="quiet">Cables unplugged. Display should show NO DATA within 2 s.</p>}
       </section>
       {buses.map(({ bus, on, assumed }) => (
-        <BusBox key={bus} bus={bus} title={on.map((d) => d.title).join(' · ')} fps={fps} assumed={assumed}>
+        <BusBox
+          key={bus}
+          bus={bus}
+          title={on.map((d) => d.title).join(' · ')}
+          fps={fps}
+          assumed={assumed}
+          wireAt={bus === GATEWAY_BUSES.bms[side] ? 'bottom' : undefined}
+        >
           {on.map((d) =>
             on.length > 1 && sim ? (
               <div key={d.title} className="device">

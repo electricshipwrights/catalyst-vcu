@@ -1,11 +1,9 @@
 import type { Smoothing } from './settings'
 import type { Currents, SideReading } from './useSide'
 
-// The bars' full scale: a motor at full power is about 293 A
-export const SCALE_MAX_A = 300
-// Relative scale: solar per MPPT, each about 34 A at full sun (1,750 W at 51.2 V)
+// Input per source: solar per MPPT, each about 34 A at full sun (1,750 W at 51.2 V)
 export const SOLAR_SLOT_A = 35
-// Relative scale: shore charging, up to the Elcon's 80 A
+// Input per source: shore charging, up to the Elcon's 80 A
 export const SHORE_SLOT_A = 80
 // Per side: 110 kWh total, so 55 kWh at 51.2 V nominal (the Orion BMS log implies ~1,105 Ah)
 export const CAPACITY_AH = 1100

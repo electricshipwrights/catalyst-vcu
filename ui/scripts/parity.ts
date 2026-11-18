@@ -8,9 +8,12 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { toHex, type Frame } from '../shared/can'
+import { MPPT_ALLOCATION, encodeAllocation } from '../shared/gateway'
 import {
   ELCON_FLAGS,
   ELCON_STATUS,
+  HEATER_SOURCES,
+  INVERTER_SOURCES,
   MOTOR_STATUS,
   ORION_LIMITS,
   ORION_PACK,
@@ -23,6 +26,7 @@ import {
   encodeOrionPack,
   n2kId,
 } from '../shared/protocol'
+import { AutoScale } from '../src/display/autoScale'
 import { EtaHold } from '../src/display/etaHold'
 import { powerView, type PowerView } from '../src/display/power'
 import { emptyRaw, ingest, read, type Currents } from '../src/display/sideState'
@@ -54,8 +58,13 @@ const propulsion = (t: number) =>
 const chargerOn = (t: number) => t >= 60 && t < 100
 const shore = (t: number) => t < 90
 const charger = (t: number) => (chargerOn(t) && shore(t) ? 40 : 0)
-const house = (t: number) => (fullThrottle(t) ? 10 : t < 150 ? 12 : 0.4)
-const packA = (t: number) => propulsion(t) + house(t) - solar22(t) - (solar23(t) ?? 0) - charger(t)
+const base = (t: number) => (fullThrottle(t) ? 10 : t < 150 ? 12 : 0.4)
+// The house loads that report: a steady heater, and an inverter cycling a cooktop
+const heater = (t: number) => (t >= 20 && t < 150 ? 6 : 0)
+const inverter = (t: number) => (t >= 40 && t < 56 ? (Math.floor(t) % 4 < 2 ? 30 : 2) : 0)
+const packA = (t: number) => propulsion(t) + base(t) + heater(t) + inverter(t) - solar22(t) - (solar23(t) ?? 0) - charger(t)
+// MPPT 1 moves to starboard for 10 s (the allocation frame), then back
+const allocation = (t: number) => (t >= 135 && t < 145 ? ['stbd', 'port', 'stbd', 'stbd'] as const : null)
 
 type Timed = { at: number; frame: Frame }
 const frames: Timed[] = []
@@ -79,8 +88,16 @@ for (let s = 0; s * 1000 < END_MS; s++) {
   const t23 = (s * 1000 + 640) / 1000
   const s23 = solar23(t23)
   if (s23 != null) push(s * 1000 + 640, n2kId(PGN_BATTERY_STATUS, 0x23), true, encodeBatteryStatus({ instance: 1, v: 52.1, a: s23, tempC: 31, sid: s }))
-  // Ignored: a source that isn't an MPPT, and a status with no current
-  push(s * 1000 + 300, n2kId(PGN_BATTERY_STATUS, 0x30), true, encodeBatteryStatus({ instance: 2, v: 52.1, a: 99, tempC: null, sid: s }))
+  // Ignored: an unknown source, starboard's heater, and a status with no current
+  push(s * 1000 + 300, n2kId(PGN_BATTERY_STATUS, 0x40), true, encodeBatteryStatus({ instance: 2, v: 52.1, a: 99, tempC: null, sid: s }))
+  push(s * 1000 + 305, n2kId(PGN_BATTERY_STATUS, HEATER_SOURCES.stbd), true, encodeBatteryStatus({ instance: 0, v: 52.1, a: 50, tempC: null, sid: s }))
+  const th = (s * 1000 + 420) / 1000
+  push(s * 1000 + 420, n2kId(PGN_BATTERY_STATUS, HEATER_SOURCES.port), true, encodeBatteryStatus({ instance: 0, v: 52.1, a: heater(th), tempC: null, sid: s }))
+  const ti = (s * 1000 + 450) / 1000
+  if (ti >= 30 && ti < 70) push(s * 1000 + 450, n2kId(PGN_BATTERY_STATUS, INVERTER_SOURCES.port), true, encodeBatteryStatus({ instance: 0, v: 52.1, a: inverter(ti), tempC: null, sid: s }))
+  const ta = (s * 1000 + 900) / 1000
+  const sides = allocation(ta)
+  if (sides || (ta >= 145 && ta < 147)) push(s * 1000 + 900, MPPT_ALLOCATION, false, encodeAllocation(sides ? [...sides] : ['port', 'port', 'stbd', 'stbd']))
   if (s === 50) push(s * 1000 + 310, n2kId(PGN_BATTERY_STATUS, 0x22), true, encodeBatteryStatus({ instance: 0, v: 52.1, a: null, tempC: null, sid: s }))
   const tl = (s * 1000 + 770) / 1000
   if (bmsOn(tl)) push(s * 1000 + 770, ORION_LIMITS, false, encodeOrionLimits({ dcl: 494, ccl: 182, tHi: 31, tLo: 24 }))
@@ -118,7 +135,12 @@ function tick(now: number): SideReading {
 }
 
 const view = (v: PowerView) =>
-  v.online ? [v.soc, v.shore, v.solarA, v.inA, v.outA, v.propulsionA, v.netA, v.eta] : null
+  v.online
+    ? [v.soc, v.shore, v.solarA, v.inA, v.outA, v.propulsionA, v.netA, v.eta, v.mpptA, v.chargerA, v.baseA, v.heaterA, v.inverterA]
+    : null
+
+// The load scale, from this side alone
+const autoScale = new AutoScale()
 
 const ticks: unknown[] = []
 let cursor = 0
@@ -129,9 +151,15 @@ for (let now = TICK_MS; now <= END_MS; now += TICK_MS) {
   }
   const r = tick(now)
   const reading = r.online
-    ? [r.solarA, r.chargerA, r.propulsionA, r.houseA, r.smooth.solarA, r.smooth.chargerA, r.smooth.propulsionA, r.smooth.houseA, r.etaNetA]
+    ? [
+        ...[r.solarA, r.chargerA, r.propulsionA, r.houseA, r.heaterA, r.inverterA],
+        ...[r.smooth.solarA, r.smooth.chargerA, r.smooth.propulsionA, r.smooth.houseA, r.smooth.heaterA, r.smooth.inverterA],
+        r.etaNetA,
+      ]
     : null
-  ticks.push([now, reading, view(powerView(r, 'smooth')), view(powerView(r, 'instant'))])
+  const smooth = powerView(r, 'smooth')
+  const scale = autoScale.push(now, smooth.online ? smooth.outA : null)
+  ticks.push([now, reading, view(smooth), view(powerView(r, 'instant')), scale])
 }
 
 const out = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../app/core/tests/fixtures/parity.json')

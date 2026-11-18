@@ -3,7 +3,10 @@
 use crate::js_round;
 use crate::side::Reading;
 
-pub const SCALE_MAX_A: f64 = 400.0;
+/// Input per source: solar per MPPT, each about 34 A at full sun (1,750 W at 51.2 V).
+pub const SOLAR_SLOT_A: f64 = 35.0;
+/// Input per source: shore charging, up to the Elcon's 80 A.
+pub const SHORE_SLOT_A: f64 = 80.0;
 /// Per side: 110 kWh total, so 55 kWh at 51.2 V nominal (the Orion BMS log implies ~1,105 Ah).
 pub const CAPACITY_AH: f64 = 1100.0;
 /// About 100 of the 110 kWh is usable, so "empty" is 9% SOC.
@@ -52,8 +55,16 @@ pub struct PowerView {
     pub soc: f64,
     pub shore: bool,
     pub solar_a: i32,
+    /// Per MPPT 1–4; `None` when it isn't allocated to this side.
+    pub mppt_a: [Option<f64>; 4],
+    /// Shore charging; `None` when the charger is silent (no shore power).
+    pub charger_a: Option<i32>,
     pub in_a: i32,
     pub out_a: i32,
+    /// The house load from the inside out (base + heater + inverter), then the motor.
+    pub base_a: i32,
+    pub heater_a: i32,
+    pub inverter_a: i32,
     pub propulsion_a: i32,
     pub net_a: i32,
     pub eta: Eta,
@@ -118,17 +129,27 @@ pub fn power_view(reading: Option<&Reading>, smoothing: Smoothing) -> Option<Pow
     let solar = c.solar_a.unwrap_or(0.0).max(0.0);
     let supplied = solar + c.charger_a.unwrap_or(0.0).max(0.0);
     let propulsion = c.propulsion_a.unwrap_or(0.0).max(0.0);
-    let load = propulsion + c.house_a.max(0.0);
+    let house = c.house_a.max(0.0);
+    let load = propulsion + house;
     let in_a = js_round(supplied) as i32;
     let out_a = js_round(load) as i32;
+    // The heater and inverter are part of the derived house load, so they can't exceed it
+    let heater_a = js_round(c.heater_a.unwrap_or(0.0).max(0.0).min(house));
+    let inverter_a = js_round(c.inverter_a.unwrap_or(0.0).max(0.0).min(house - heater_a));
+    let propulsion_a = js_round(propulsion) as i32;
     let soc = r.live.soc;
     Some(PowerView {
         soc,
         shore: r.live.shore,
         solar_a: js_round(solar) as i32,
+        mppt_a: r.live.mppt_a.map(|a| a.map(|a| a.max(0.0))),
+        charger_a: c.charger_a.map(|a| js_round(a.max(0.0)) as i32),
         in_a,
         out_a,
-        propulsion_a: js_round(propulsion) as i32,
+        base_a: (out_a - propulsion_a - heater_a as i32 - inverter_a as i32).max(0),
+        heater_a: heater_a as i32,
+        inverter_a: inverter_a as i32,
+        propulsion_a,
         net_a: in_a - out_a,
         eta: match r.eta_net_a {
             None => pending_eta(soc, in_a - out_a),

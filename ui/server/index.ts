@@ -60,7 +60,6 @@ const gateway = new Gateway()
 class Bus {
   source: SourceKind = 'sim'
   external: Source | null = null
-  pending: WireFrame[] = []
   sim: BatterySim
   fps = 0
   private count = 0
@@ -77,7 +76,6 @@ class Bus {
   }
 
   push = (f: WireFrame) => {
-    this.pending.push(f)
     gateway.push(this.name, f)
     this.count++
   }
@@ -199,12 +197,6 @@ wss.on('connection', (ws) => {
 })
 
 setInterval(() => {
-  for (const b of BUSES) {
-    const bus = buses[b]
-    if (!bus.pending.length) continue
-    broadcast({ type: 'frames', bus: b, frames: bus.pending })
-    bus.pending = []
-  }
   // The sims' frames as the router would send them (dropped while the real
   // router is the source)
   for (const { bus, packet } of gateway.flush()) {

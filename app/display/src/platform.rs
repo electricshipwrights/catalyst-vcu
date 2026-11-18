@@ -48,15 +48,24 @@ pub fn install() -> Result<Rc<MinimalSoftwareWindow>, Box<dyn Error>> {
     Ok(window)
 }
 
-fn sample(soc: i32, solar: i32, propulsion: i32, house: i32, eta: &str, shore: bool) -> SideView {
-    let (in_a, out_a) = (solar, propulsion + house);
+/// A side for screenshots. `mppt`: amps per MPPT 1–4, −1 for those on the
+/// other side; `charger`: −1 without shore power; `house`: base, heater, inverter.
+fn sample(soc: i32, mppt: [f32; 4], charger: i32, house: [i32; 3], propulsion: i32, eta: &str) -> SideView {
+    let solar = mppt.iter().filter(|a| **a > 0.0).sum::<f32>().round() as i32;
+    let in_a = solar + charger.max(0);
+    let out_a = propulsion + house.iter().sum::<i32>();
     SideView {
         online: true,
         soc,
-        shore,
+        shore: charger >= 0,
         solar_a: solar,
+        mppt_a: Rc::new(slint::VecModel::from(mppt.to_vec())).into(),
+        charger_a: charger,
         in_a,
         out_a,
+        base_a: house[0],
+        heater_a: house[1],
+        inverter_a: house[2],
         propulsion_a: propulsion,
         net_a: in_a - out_a,
         eta_kind: 3,
@@ -76,9 +85,11 @@ pub fn screenshot(
     ui.show().map_err(slint_error)?;
     let mut buffer = vec![Rgb565Pixel(0); (WIDTH * HEIGHT) as usize];
 
-    // The bench simulator's starting values (ui/server/index.ts)
-    let port = sample(64, 142, 170, 32, "2:59", false);
-    let stbd = sample(71, 168, 125, 13, "2:46", true);
+    // Underway with the 2/2 split: port heating and cooking, starboard on its
+    // base load; then the same at the dock on shore power
+    let port = sample(64, [26.0, 26.0, -1.0, -1.0], -1, [6, 12, 25], 70, "10h");
+    let stbd = sample(71, [-1.0, -1.0, 29.0, 29.0], 78, [15, 0, 0], 0, "5:45");
+    ui.set_scale_max(100);
     let shots = [
         ("dark", 0, port.clone(), stbd.clone()),
         ("light", 1, port.clone(), stbd.clone()),
@@ -89,7 +100,7 @@ pub fn screenshot(
             SideView::default(),
             SideView {
                 eta_kind: 2,
-                ..sample(9, 0, 0, 4, "", false)
+                ..sample(9, [-1.0; 4], -1, [4, 0, 0], 0, "")
             },
         ),
     ];
