@@ -35,6 +35,8 @@ The bench can show either this React display or the Slint port in `../app`, whic
 
 `pnpm build:static` builds the bench for a static host (Netlify, GitHub Pages) into `dist/`, with relative paths so it works under a subpath. With no bus server, the page runs both sims and the gateway stand-in itself (`src/localBus.ts`, sharing `server/simBench.ts` with the server), so each visitor gets their own boat. Replay, candump and the real router need `pnpm dev`. Run `pnpm build:wasm` first so the Slint renderer is included; a host's build image would need Rust and wasm-bindgen to build it there.
 
+On GitHub, `../.github/workflows/pages.yml` does this on every push to `main`: it runs the Rust tests, builds the WASM and the bench, and publishes them to GitHub Pages (Settings → Pages → Source: GitHub Actions). To publish elsewhere by hand:
+
 ```
 pnpm build:wasm && pnpm build:static
 netlify deploy --dir=dist            # a draft URL; add --prod to publish
