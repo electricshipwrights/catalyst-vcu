@@ -8,7 +8,7 @@ export const SCALE_DEFAULT_A = 100
 const UP_AT = 0.96
 const UP_AFTER_MS = 300
 const DOWN_AT = 0.4 // of the next step down
-const DOWN_AFTER_MS = 30000
+const DOWN_AFTER_MS = 8000
 
 export class AutoScale {
   maxA = SCALE_DEFAULT_A

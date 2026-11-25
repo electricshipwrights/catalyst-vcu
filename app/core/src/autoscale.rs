@@ -9,7 +9,7 @@ const UP_AT: f64 = 0.96;
 const UP_AFTER_MS: f64 = 300.0;
 /// Of the next step down.
 const DOWN_AT: f64 = 0.4;
-const DOWN_AFTER_MS: f64 = 30000.0;
+const DOWN_AFTER_MS: f64 = 8000.0;
 
 pub struct AutoScale {
     pub max_a: f64,

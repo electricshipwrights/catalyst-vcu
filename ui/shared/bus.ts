@@ -95,4 +95,5 @@ export type ClientMsg =
   | { type: 'allocation'; sides: Bank[] }
   | { type: 'sky'; pct: number[] }
   | { type: 'daylight'; daylight: Daylight }
+  | { type: 'clock'; shiftMs: number }
   | { type: 'gateway'; source: GatewaySource }

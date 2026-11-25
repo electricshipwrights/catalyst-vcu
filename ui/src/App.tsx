@@ -5,7 +5,7 @@ import { NmeaBox } from './bench/Nmea'
 import { Presets } from './bench/Presets'
 import { SideColumn } from './bench/Side'
 import { Specs } from './bench/Specs'
-import { DaylightToggle, InletToggle, RendererToggle, SmoothingToggle, SpeedToggle, ThemeToggle } from './bench/Toggles'
+import { DaylightToggle, InletToggle, RendererToggle, SmoothingToggle, SpeedToggle, ThemeToggle, TimeOfDayToggle } from './bench/Toggles'
 import { useServerStatus } from './bus'
 import { BUTTONS, pressButton } from './display/buttons'
 import { Display } from './display/Display'
@@ -61,6 +61,7 @@ export function App() {
           <Presets />
           <SpeedToggle />
           <DaylightToggle />
+          <TimeOfDayToggle />
           <InletToggle />
         </div>
         <div className="controls controls-end">

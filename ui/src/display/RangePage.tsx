@@ -12,7 +12,7 @@ import {
   type RangeWindow,
   type SpeedBasis,
 } from "./range";
-import { useDaylight } from "./settings";
+import { useClockShift, useDaylight } from "./settings";
 import { useSide, type SideReading } from "./useSide";
 
 // The time axis sits just under the chart, its labels on the power view's
@@ -67,7 +67,8 @@ export function RangePage() {
   const [planKn, setPlanKn] = useState<number | null>(null);
   const [win, setWin] = useState<RangeWindow>("today");
   const daylight = useDaylight();
-  const now = Date.now();
+  // The bench's time of day moves the clock
+  const now = Date.now() + useClockShift();
   const v = rangeView([...rangeInput(port), ...rangeInput(stbd)], planKn, win, now, localOffsetMin(now), daylight);
 
   if (!v) {

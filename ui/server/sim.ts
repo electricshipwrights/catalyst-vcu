@@ -66,6 +66,8 @@ export class BatterySim {
   speed = 1
   // The bench's daylight setting: the sun as now, or as in a season
   daylight: Daylight = 'now'
+  // The bench's time of day, as ms added to the clock
+  clockShiftMs = 0
   // The dock's inlet, shared by both chargers
   inlet: ShoreInlet = 50
   private last = performance.now()
@@ -140,7 +142,7 @@ export class BatterySim {
   // What each MPPT's panels could give now: a quarter of the array's clear-sky
   // current, for the time of day (and season, with the daylight setting), × its sky
   private panelTarget() {
-    const now = Date.now()
+    const now = Date.now() + this.clockShiftMs
     const clearA = clearSkyA(now + sunShift(now, this.daylight, localOffsetMin(now))) / 4
     return this.params.skyPct.map((pct) => (clearA * pct) / 100)
   }

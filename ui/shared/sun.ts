@@ -48,6 +48,19 @@ const DAYLIGHT_DATES: Record<Exclude<Daylight, 'now'>, [number, number]> = {
   winter: [11, 21],
 }
 
+// The bench's time of day: the clock as it is, or moved to a time today
+export const TIMES_OF_DAY = ['now', 'morning', 'afternoon', 'night'] as const
+export type TimeOfDay = (typeof TIMES_OF_DAY)[number]
+export const TIME_OF_DAY_HOUR: Record<Exclude<TimeOfDay, 'now'>, number> = { morning: 8, afternoon: 15, night: 22 }
+
+// How far to move the clock so it reads that time today (local); it runs on
+// from there, so it's worked out once, when the time is picked
+export function clockShift(now: number, t: TimeOfDay, offsetMin: number) {
+  if (t === 'now') return 0
+  const local = now + offsetMin * 60_000
+  return Math.floor(local / DAY_MS) * DAY_MS + TIME_OF_DAY_HOUR[t] * HOUR_MS - local
+}
+
 // How far to move the sun model's clock: whole days, from today to the
 // season's date this year
 export function sunShift(now: number, daylight: Daylight, offsetMin: number) {

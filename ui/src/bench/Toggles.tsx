@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { SHORE_INLETS, SIM_SPEEDS } from '../../shared/bus'
-import { DAYLIGHTS } from '../../shared/sun'
+import { DAYLIGHTS, TIMES_OF_DAY, TIME_OF_DAY_HOUR } from '../../shared/sun'
 import { send, useServerStatus } from '../bus'
 import {
   RENDERERS,
@@ -8,10 +8,13 @@ import {
   setRenderer,
   setSmoothing,
   setDaylight,
+  setTimeOfDay,
   setTheme,
   useRenderer,
   useSmoothing,
+  useClockShift,
   useDaylight,
+  useTimeOfDay,
   useTheme,
   type Smoothing,
 } from '../display/settings'
@@ -74,6 +77,25 @@ export function DaylightToggle() {
       options={DAYLIGHTS.map((s) => ({ value: s, label: s }))}
       value={daylight}
       onChange={setDaylight}
+    />
+  )
+}
+
+// The clock as it is, or moved to the morning, afternoon or night today
+// (labeled with their times), for the sim's sun and the range view; it runs
+// on from there. The sim is told whenever it changes or the bus server reconnects.
+export function TimeOfDayToggle() {
+  const shiftMs = useClockShift()
+  const connected = useServerStatus() != null
+  useEffect(() => {
+    if (connected) send({ type: 'clock', shiftMs })
+  }, [shiftMs, connected])
+  return (
+    <ToggleRow
+      label="time of day"
+      options={TIMES_OF_DAY.map((t) => ({ value: t, label: t === 'now' ? 'now' : `${String(TIME_OF_DAY_HOUR[t]).padStart(2, '0')}:00` }))}
+      value={useTimeOfDay()}
+      onChange={setTimeOfDay}
     />
   )
 }

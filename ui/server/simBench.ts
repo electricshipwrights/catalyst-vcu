@@ -3,7 +3,7 @@
 // no Node modules here or in what it imports.
 import { BUSES, SHORE_INLETS, SIM_SPEEDS, type BusName, type ClientMsg, type SimParams } from '../shared/bus'
 import type { Bank } from '../shared/gateway'
-import { DAYLIGHTS } from '../shared/sun'
+import { DAYLIGHTS, DAY_MS } from '../shared/sun'
 import { VESSEL } from '../shared/vessel'
 import type { Gateway } from './gateway'
 import { BatterySim } from './sim'
@@ -49,6 +49,10 @@ export function applySimMsg(sims: Sims, gateway: Gateway, msg: ClientMsg) {
       return true
     case 'daylight':
       if (DAYLIGHTS.includes(msg.daylight)) BUSES.forEach((b) => (sims[b].daylight = msg.daylight))
+      return true
+    case 'clock':
+      // Within two days either way
+      if (Number.isFinite(msg.shiftMs)) BUSES.forEach((b) => (sims[b].clockShiftMs = Math.max(-2 * DAY_MS, Math.min(2 * DAY_MS, msg.shiftMs))))
       return true
     case 'inlet':
       if (SHORE_INLETS.includes(msg.inlet)) BUSES.forEach((b) => (sims[b].inlet = msg.inlet))
