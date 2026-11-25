@@ -61,6 +61,8 @@ Orion checksum: `(id + 8 + sum(bytes 0..6)) & 0xFF`. This was verified against a
 
 Derived values: `load out = solar + charger + pack current`. House = load out − propulsion, sampled when one of the side's MPPTs reports so the two agree; base = house − heater − inverter. The load bar stacks base, heater (steady house) and inverter (intermittent house) from the inner end, with the motor outermost. Net = in − out.
 
+The load bars (and the input bar in the combined view) share one scale, the smallest of 50, 100, 200, 300 and 400 A that fits the longest bar on either side (`src/display/autoScale.ts`). It steps up once a bar passes 96% of the scale for 0.3 s, and down once the last 8 s have all fit within 90% of a smaller one, so cruise (≈ 88 A) sits at 100 and full throttle at 400. The bars ease to a new scale over half a second; the end labels change at once.
+
 ## Sources
 
 Pick a source per side from the bench UI, or set it at startup:

@@ -44,7 +44,7 @@ Run these from `app/`, with the board plugged in over USB-C. The scripts find it
 - **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
 - **Buses:** `can0` is port and `can1` is starboard, each with all of that side's devices. This predates the gateway (`../GATEWAY.md`); the app will move to the router's UDP stream. MPPT 1–2 (sources 0x22–0x23) count for port and 3–4 for starboard unless an allocation frame says otherwise.
 - **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `input=combined`, `smoothing=instant`), which is re-read when it changes. Picking a theme or input view on the SETTINGS view (button C) saves it there, so it survives reboots.
-- **Clock:** the RANGE view (button B) uses the board's clock and time zone (TZ, or /etc/localtime) for its times, window and sun. The clock reads Jan 1 at boot until it's set; see the board clock question in `../README.md`.
+- **Clock:** the RANGE view (button B) takes its times, window and sun from NMEA 2000 System Time (PGN 126992) when it's on either bus, as from a GPS or chartplotter (the demo sends it). Otherwise it uses the board's clock and time zone (TZ, or /etc/localtime), which reads Jan 1 at boot until it's set; see the board clock question in `../README.md`.
 - **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
 
 To see live data without batteries, simulate the CAN buses:
