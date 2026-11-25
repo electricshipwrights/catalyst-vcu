@@ -6,7 +6,7 @@ The battery and power display for Catalyst/Solander 38, built around an M5Stack 
 |---|---|
 | `ui/` | The bench: simulated port and starboard sides, a stand-in for the CAN gateway, and the React prototype of the display. See [ui/README.md](ui/README.md). |
 | `app/` | The display in Rust and Slint: the same UI for the board and the browser. See [app/README.md](app/README.md). |
-| `pcan-can-eth-gateway-main/` | Firmware for the CAN gateway: bridges all six buses to Ethernet and logs them to SD. See [its README](pcan-can-eth-gateway-main/README.md), and [GATEWAY.md](GATEWAY.md) for how the display uses it. |
+| `pcan-can-eth-gateway-main/` | Firmware for the CAN gateway: bridges all six buses to Ethernet and logs them to SD. See [GATEWAY.md](GATEWAY.md) for how the display uses it. |
 | `tools/` | Scripts for the board over its USB-C serial console: install, CAN simulation, screen capture. |
 | `spike/` | The first hardware check on the board (display, touch, CAN). Kept for its notes. |
 
@@ -75,3 +75,7 @@ The gateway (which made the Oct 6 log) has one bus per device group:
 | CAN6 | NMEA 2000, including all four MPPTs |
 
 The CoreMP135 has only two CAN ports, so the display takes the gateway's raw CAN frames over Ethernet instead (a PCAN-Router Pro FD broadcasting cannelloni UDP; firmware in `pcan-can-eth-gateway-main/`). Both displays in the browser already work this way; the board app still reads `can0`/`can1`. See [GATEWAY.md](GATEWAY.md).
+
+## License
+
+GPL-3.0-only (see [LICENSE](LICENSE)): the bench and React prototype in `ui/`, the Rust and Slint app in `app/`, and the scripts in `tools/`. That's what Slint, the UI library the app is built with, requires: its royalty-free license excludes embedded devices, which leaves GPLv3 or a paid license for the board. The Inter fonts are under the SIL Open Font License (`app/display/fonts/Inter-OFL.txt`, with a copy in `ui/src/display/fonts/inter/`). The gateway firmware isn't part of this repo; it's under its own MIT license.

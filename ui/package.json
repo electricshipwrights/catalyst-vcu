@@ -1,6 +1,7 @@
 {
   "name": "vcu-display",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n bus,web -c blue,magenta \"pnpm bus\" \"vite\"",
