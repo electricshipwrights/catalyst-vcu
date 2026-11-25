@@ -1,6 +1,7 @@
 // Runs a scripted 220-second scenario through the prototype's display logic
 // and writes the frames plus every 10 Hz reading to a fixture. The Rust port
-// (app/core/tests/parity.rs) replays the same frames and must match.
+// (app/core/tests/parity.rs) replays the same frames and must match. Also
+// writes range view cases for app/core/tests/range.rs.
 //
 //   pnpm parity
 
@@ -29,6 +30,8 @@ import {
 import { AutoScale } from '../src/display/autoScale'
 import { EtaHold } from '../src/display/etaHold'
 import { powerView, type PowerView } from '../src/display/power'
+import { WINDOWS, chartPaths, rangeView, speedFor, type RangeInput } from '../src/display/range'
+import type { Daylight } from '../shared/sun'
 import { emptyRaw, ingest, read, type Currents } from '../src/display/sideState'
 import { StepFilter } from '../src/display/stepFilter'
 import type { SideReading } from '../src/display/useSide'
@@ -169,6 +172,55 @@ const json = {
   ticks,
 }
 writeFileSync(out, JSON.stringify(json).replaceAll('],[', '],\n['))
+// The range view, case by case: each input through rangeView and chartPaths
+// (at the device chart's size), for app/core/tests/range.rs
+const T = (iso: string) => Date.parse(iso)
+const TIMES: [number, number][] = [
+  [T('2026-06-21T21:00:00Z'), -420], // 14:00 PDT, midsummer
+  [T('2026-06-22T03:30:00Z'), -420], // 20:30 PDT: today runs past midnight
+  [T('2026-12-10T17:15:00Z'), -480], // 09:15 PST, winter
+  [T('2026-03-21T06:40:00Z'), -420], // 23:40 PDT, near midnight
+  [T('2026-09-01T08:05:00Z'), 330], // 13:35 IST, a half-hour offset
+  [T('2026-11-24T00:00:00Z'), 0], // midnight UTC
+]
+const side = (soc: number, houseA: number, propulsionA: number, solarA: number, mppts: number, chargerA = 0): RangeInput => ({
+  soc,
+  houseA,
+  propulsionA,
+  solarA,
+  mppts,
+  shore: chargerA > 0,
+  chargerA,
+})
+const SIDES: RangeInput[][] = [
+  [side(64, 3, 78, 20, 2), side(71, 15, 70, 22, 2)], // cruising
+  [side(40, 10, 150, 0, 4)], // one side online
+  [side(50, 10, 0, 5, 2, 60), side(95, 10, 0, 5, 2, 40)], // at the dock
+  [side(12, 10, 100, 30, 1), side(30, 5, 100, 30, 3)], // one side out early
+  [side(9, 4, 0, 0, 2), side(8, 4, 0, 0, 2)], // both at the reserve
+]
+const PLANS = [null, 5, 9.5]
+const DAYLIGHT_CASES: Daylight[] = ['now', 'winter', 'summer', 'spring/fall']
+const rangeCases = Array.from({ length: 30 }, (_, i) => {
+  const [now, offsetMin] = TIMES[i % TIMES.length]
+  const input = {
+    sides: SIDES[i % SIDES.length],
+    planKn: PLANS[i % PLANS.length],
+    // Each time with both windows
+    w: WINDOWS[Math.floor(i / TIMES.length) % WINDOWS.length],
+    now,
+    offsetMin,
+    daylight: DAYLIGHT_CASES[i % DAYLIGHT_CASES.length],
+  }
+  const v = rangeView(input.sides, input.planKn, input.w, now, offsetMin, input.daylight)!
+  const { points, ...projection } = v.projection
+  return { input, out: { ...v, projection: { ...projection, points: points.length }, paths: chartPaths(v, now, 276, 88) } }
+})
+const speeds = [0, 1.9, 2, 10, 19.5, 30, 43.9, 78, 100, 293, 400].map((a) => [a, speedFor(a)])
+const rangeOut = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../app/core/tests/fixtures/range.json')
+writeFileSync(rangeOut, JSON.stringify({ cases: rangeCases, speeds }, null, 1))
+console.log(`${rangeCases.length} range cases → ${path.relative(process.cwd(), rangeOut)}`)
+
 const etas = new Set(ticks.flatMap((t) => [(t as unknown[])[2], (t as unknown[])[3]]).map((v) => (v ? (v as unknown[])[7] : 'offline')))
 console.log(`${frames.length} frames, ${ticks.length} ticks → ${path.relative(process.cwd(), out)}`)
 console.log(`eta values seen: ${[...etas].slice(0, 12).join(' | ')}${etas.size > 12 ? ` … (${etas.size} total)` : ''}`)

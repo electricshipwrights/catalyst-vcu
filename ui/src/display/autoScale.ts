@@ -1,11 +1,12 @@
 // The bars' full scale, shared by both sides so they stay comparable. It steps
-// up soon after a bar nears its end and back down only once well clear for a
-// while, so it changes rarely: 100 A covers cruise (≈ 50 A a side) and shore
+// up as soon as a bar nears its end (a brief hold skips single-frame spikes)
+// and back down only once well clear for a while, so it changes rarely: 100 A
+// (up at 96) covers cruise (≈ 88 A a side with the house load) and shore
 // charging (80 A); a motor at full power (≈ 293 A) needs 300.
 export const SCALE_STEPS_A = [50, 100, 200, 300]
 export const SCALE_DEFAULT_A = 100
-const UP_AT = 0.9
-const UP_AFTER_MS = 2000
+const UP_AT = 0.96
+const UP_AFTER_MS = 300
 const DOWN_AT = 0.4 // of the next step down
 const DOWN_AFTER_MS = 30000
 

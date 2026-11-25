@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { localOffsetMin } from "../../shared/sun";
+import { ShoreIcon } from "./PowerPage";
 import { RESERVE_PCT } from "./power";
 import {
   WINDOWS,
   chartPaths,
-  localOffsetMin,
   rangeView,
   socY,
   stepSpeed,
@@ -11,6 +12,7 @@ import {
   type RangeWindow,
   type SpeedBasis,
 } from "./range";
+import { useDaylight } from "./settings";
 import { useSide, type SideReading } from "./useSide";
 
 // The time axis sits just under the chart, its labels on the power view's
@@ -33,30 +35,40 @@ function rangeInput(r: SideReading): RangeInput[] {
       propulsionA: Math.max(0, c.propulsionA ?? 0),
       solarA: Math.max(0, c.solarA ?? 0),
       mppts: r.mppts,
+      shore: r.shore,
+      chargerA: Math.max(0, c.chargerA ?? 0),
     },
   ];
 }
 
-// A time with its label above, like the side labels over the SOC
-function When({ at, label, text }: { at: "center" | "right"; label: string; text: string }) {
+// How long until something, with its label above, like the side labels over
+// the SOC, and the day and time below. The hours' "h" is a unit, like "nm".
+function When({ at, label, hours, time }: { at: "center" | "right"; label: string; hours: string; time: string | null }) {
+  const unit = hours.endsWith("h");
   return (
     <div className={`when when-${at}`}>
       <div className="when-label">{label}</div>
-      <div className="when-time">{text}</div>
+      <div className="when-time">
+        {unit ? hours.slice(0, -1) : hours}
+        {unit && <span className="unit"> h</span>}
+      </div>
+      {time && <div className="when-at">{time}</div>}
     </div>
   );
 }
 
 // Range view (button B): how far at a speed before the first side reaches
-// the reserve, with and without the sun, over today or the next 24 hours
+// the reserve, with and without the sun, over today (at least 8 hours) or
+// the next 24 hours
 export function RangePage() {
   const port = useSide("port");
   const stbd = useSide("stbd");
   // A speed picked here; null follows the boat
   const [planKn, setPlanKn] = useState<number | null>(null);
   const [win, setWin] = useState<RangeWindow>("today");
+  const daylight = useDaylight();
   const now = Date.now();
-  const v = rangeView([...rangeInput(port), ...rangeInput(stbd)], planKn, win, now, localOffsetMin(now));
+  const v = rangeView([...rangeInput(port), ...rangeInput(stbd)], planKn, win, now, localOffsetMin(now), daylight);
 
   if (!v) {
     return (
@@ -97,14 +109,32 @@ export function RangePage() {
         <span className="unit"> nm</span>
       </div>
       {/* When the first side reaches the reserve, with the sun and without */}
-      <When at="center" label="RESERVE" text={v.reserve} />
-      <When at="right" label="W/O SUN" text={v.noSun} />
+      <When at="center" label="RESERVE" hours={v.reserveIn} time={v.reserveAt} />
+      <When at="right" label="W/O SUN" hours={v.noSunIn} time={v.noSunAt} />
+      {/* At the dock: when it'll be full, and the range leaving then */}
+      {v.dock && (
+        <div className="dock">
+          <ShoreIcon />
+          full {v.dock.full === "now" ? "" : "at "}
+          <span className="dock-value">{v.dock.full}</span>
+          {v.dock.nm != null && (
+            <>
+              , then <span className="dock-value">{Math.round(v.dock.nm)} nm</span>
+            </>
+          )}
+        </div>
+      )}
 
       <svg className="chart" style={{ left: CHART.x, top: CHART.y }} width={CHART.w} height={CHART.h}>
         <path className="sun" d={paths.solar} />
         {LEVELS.map((soc) => (
           <line key={soc} className={soc === RESERVE_PCT ? "reserve" : "grid"} x1={0} x2={CHART.w} y1={socY(soc, CHART.h)} y2={socY(soc, CHART.h)} />
         ))}
+        {/* Local midnight, over its weekday on the time axis */}
+        {v.midnights.map((at) => {
+          const x = ((at - now) / span) * CHART.w;
+          return <line key={at} className="midnight" x1={x} x2={x} y1={0} y2={CHART.h} />;
+        })}
         <path className="battery-only" d={paths.batteryOnly} />
         <path className="with-solar" d={paths.withSolar} />
       </svg>

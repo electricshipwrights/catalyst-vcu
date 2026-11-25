@@ -3,14 +3,14 @@
 //! 320×240 canvas, so the page shows the LCD's exact pixels. It reads the
 //! gateway stream from the bench's `/bus` WebSocket (ui/server): binary
 //! messages of a bus number then a cannelloni packet, as the router sends over
-//! UDP. It follows the bench's `vcu.theme`, `vcu.input` and `vcu.smoothing`
-//! settings in localStorage.
+//! UDP. It follows the bench's `vcu.theme`, `vcu.input`, `vcu.smoothing` and
+//! `vcu.daylight` settings in localStorage.
 //!
 //! Built by `pnpm build:wasm` in ui/; see ui/src/slint/SlintDisplay.tsx.
 
 #![cfg(target_arch = "wasm32")]
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -19,10 +19,10 @@ use vcu_display::slint::platform::software_renderer::{
 };
 use vcu_display::slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
 use vcu_display::slint::{self, ComponentHandle, LogicalPosition, PhysicalSize, Timer, TimerMode};
-use vcu_display::vcu_core::Smoothing;
 use vcu_display::vcu_core::gateway::decode_cannelloni;
+use vcu_display::vcu_core::sun::Daylight;
 use vcu_display::{
-    Display, HEIGHT, Palette, Prefs, Sides, WIDTH, drive, input_name, parse_input,
+    Display, HEIGHT, Palette, Prefs, Settings, Sides, WIDTH, drive, input_name, parse_input,
     parse_smoothing, parse_theme, theme_name,
 };
 use wasm_bindgen::prelude::*;
@@ -35,6 +35,12 @@ fn window() -> web_sys::Window {
 
 fn now_ms() -> f64 {
     window().performance().expect("no performance").now()
+}
+
+/// The time of day, for the range view.
+fn wall() -> (f64, f64) {
+    let date = js_sys::Date::new_0();
+    (date.get_time(), -date.get_timezone_offset())
 }
 
 /// Opens the bus WebSocket and reconnects a second after it closes.
@@ -79,7 +85,7 @@ fn connect(sides: Rc<RefCell<Sides>>) {
 }
 
 /// Follows the bench's settings, which it writes to localStorage.
-fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
+fn watch_settings(ui: &Display, settings: Rc<Settings>) -> Timer {
     let weak = ui.as_weak();
     let apply = move || {
         let (Some(ui), Ok(Some(storage))) = (weak.upgrade(), window().local_storage()) else {
@@ -107,7 +113,15 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
             .flatten()
             .and_then(|v| parse_smoothing(&v))
         {
-            smoothing.set(s);
+            settings.smoothing.set(s);
+        }
+        if let Some(d) = storage
+            .get_item("vcu.daylight")
+            .ok()
+            .flatten()
+            .and_then(|v| Daylight::parse(&v))
+        {
+            settings.daylight.set(d);
         }
     };
     apply();
@@ -258,11 +272,11 @@ pub fn start(canvas: HtmlCanvasElement) -> Result<(), JsValue> {
 
     let ui = Display::new().map_err(|e| err(&e))?;
     let sides = Rc::new(RefCell::new(Sides::default()));
-    let smoothing = Rc::new(Cell::new(Smoothing::default()));
-    let settings = watch_settings(&ui, smoothing.clone());
+    let settings = Rc::new(Settings::default());
+    let watcher = watch_settings(&ui, settings.clone());
     ui.on_theme_selected(|theme| save_setting("vcu.theme", theme_name(theme)));
     ui.on_input_selected(|input| save_setting("vcu.input", input_name(input)));
-    let driver = drive(&ui, sides.clone(), smoothing, now_ms);
+    let driver = drive(&ui, sides.clone(), settings, now_ms, wall);
     connect(sides);
     ui.show().map_err(|e| err(&e))?;
     listen_for_pointer(&canvas, window.clone())?;
@@ -270,6 +284,6 @@ pub fn start(canvas: HtmlCanvasElement) -> Result<(), JsValue> {
     run(window, context);
 
     // The UI and its timers live for the rest of the page
-    std::mem::forget((ui, settings, driver));
+    std::mem::forget((ui, watcher, driver));
     Ok(())
 }

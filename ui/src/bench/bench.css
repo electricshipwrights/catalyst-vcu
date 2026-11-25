@@ -42,7 +42,7 @@ button {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px 16px;
-  margin-bottom: 4px;
+  margin-bottom: 24px;
 }
 
 .stage {
@@ -182,6 +182,10 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+}
+
+.slider.detailed {
+  grid-template-columns: 84px 1fr 84px;
 }
 
 .slider input {
@@ -333,6 +337,7 @@ button {
   position: relative;
   z-index: 1;
   padding: 14px;
+  margin-bottom: 16px;
   background: #0a0a0b;
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.35), inset 0 0 0 1px #45474d;
 }

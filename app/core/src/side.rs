@@ -33,6 +33,8 @@ pub struct Live {
     pub shore: bool,
     /// MPPTs 1–4: current from each one allocated to this side, `None` for the rest.
     pub mppt_a: [Option<f64>; 4],
+    /// How many MPPTs are allocated to this side, reporting or not.
+    pub mppts: usize,
 }
 
 /// What the display draws each tick for a side that's online.
@@ -186,6 +188,7 @@ impl Raw {
                 let s = self.solar.iter().find(|(s, _)| *s == src)?;
                 (now - s.1.at < DEVICE_STALE_MS).then_some(s.1.value)
             }),
+            mppts: MPPT_SOURCES.iter().filter(|&&src| self.mine(src)).count(),
         })
     }
 }

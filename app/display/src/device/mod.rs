@@ -10,6 +10,7 @@
 //!   VCU_ROTATE         180 (default: the board is mounted upside down, so the
 //!                      A/B/C buttons are above the screen) or 0
 //!   VCU_TOUCH*         see touch.rs
+//!   TZ                 local time for the range view, if /etc/localtime isn't set
 
 mod can;
 mod fb;
@@ -19,14 +20,13 @@ use std::cell::{Cell, RefCell};
 use std::error::Error;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use slint::platform::software_renderer::{MinimalSoftwareWindow, Rgb565Pixel};
 use slint::{ComponentHandle, PhysicalSize, Timer, TimerMode};
-use vcu_display::vcu_core::Smoothing;
 use vcu_display::{
-    Display, Palette, Prefs, Sides, drive, input_name, parse_input, parse_smoothing, parse_theme,
-    theme_name,
+    Display, Palette, Prefs, Settings, Sides, drive, input_name, parse_input, parse_smoothing,
+    parse_theme, theme_name,
 };
 
 use crate::platform::{now_ms, slint_error};
@@ -65,8 +65,20 @@ fn save_setting(key: &str, value: &str) {
     }
 }
 
+/// The time of day for the range view, and the local offset from the C
+/// library's time zone (TZ or /etc/localtime).
+fn wall() -> (f64, f64) {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis()) as f64;
+    let secs = (now / 1000.0) as _;
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    let found = !unsafe { libc::localtime_r(&secs, &mut tm) }.is_null();
+    (now, if found { tm.tm_gmtoff as f64 / 60.0 } else { 0.0 })
+}
+
 /// Applies the settings file whenever its modification time changes.
-fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
+fn watch_settings(ui: &Display, settings: Rc<Settings>) -> Timer {
     let path = settings_path();
     let seen: Cell<Option<SystemTime>> = Cell::new(None);
     let weak = ui.as_weak();
@@ -90,7 +102,7 @@ fn watch_settings(ui: &Display, smoothing: Rc<Cell<Smoothing>>) -> Timer {
                     None => eprintln!("{path}: unknown input {v:?}"),
                 },
                 Some(("smoothing", v)) => match parse_smoothing(v) {
-                    Some(s) => smoothing.set(s),
+                    Some(s) => settings.smoothing.set(s),
                     None => eprintln!("{path}: unknown smoothing {v:?}"),
                 },
                 _ => {}
@@ -137,11 +149,11 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, ui: &Display) -> Result<(), Box<d
         .ok();
 
     let sides = Rc::new(RefCell::new(Sides::default()));
-    let smoothing = Rc::new(Cell::new(Smoothing::default()));
-    let _settings = watch_settings(ui, smoothing.clone());
+    let settings = Rc::new(Settings::default());
+    let _settings = watch_settings(ui, settings.clone());
     ui.on_theme_selected(|theme| save_setting("theme", theme_name(theme)));
     ui.on_input_selected(|input| save_setting("input", input_name(input)));
-    let _driver = drive(ui, sides.clone(), smoothing, now_ms);
+    let _driver = drive(ui, sides.clone(), settings, now_ms, wall);
     let mut port = can::Bus::open(env_or("VCU_PORT_CAN", "can0"));
     let mut stbd = can::Bus::open(env_or("VCU_STBD_CAN", "can1"));
     ui.show().map_err(slint_error)?;

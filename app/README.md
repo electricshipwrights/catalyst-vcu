@@ -23,7 +23,7 @@ pnpm dev            # bench; Slint is the default renderer (toggle "renderer" fo
 
 - After changing `.slint` or Rust files, run `pnpm build:wasm` again. Vite reloads the page.
 - `?display` shows the screen alone, using whichever renderer is selected.
-- The bench's theme and smoothing toggles apply to both renderers, and its A/B/C buttons switch views in both.
+- The bench's theme, currents (smoothing) and daylight toggles apply to both renderers, and its A/B/C buttons switch views in both.
 
 ## Device
 
@@ -44,6 +44,7 @@ Run these from `app/`, with the board plugged in over USB-C. The scripts find it
 - **Orientation:** the output is rotated 180° by default, for the board mounted with the A/B/C buttons above the screen. Touch is flipped to match, and the buttons are numbered left to right as you see them. `VCU_ROTATE=0` turns this off.
 - **Buses:** `can0` is port and `can1` is starboard, each with all of that side's devices. This predates the gateway (`../GATEWAY.md`); the app will move to the router's UDP stream. MPPT 1–2 (sources 0x22–0x23) count for port and 3–4 for starboard unless an allocation frame says otherwise.
 - **Settings:** theme and smoothing come from `/etc/vcu/display.conf` (`theme=night`, `input=combined`, `smoothing=instant`), which is re-read when it changes. Picking a theme or input view on the SETTINGS view (button C) saves it there, so it survives reboots.
+- **Clock:** the RANGE view (button B) uses the board's clock and time zone (TZ, or /etc/localtime) for its times, window and sun. The clock reads Jan 1 at boot until it's set; see the board clock question in `../README.md`.
 - **More options:** the other environment variables are listed in `display/src/device/mod.rs`.
 
 To see live data without batteries, simulate the CAN buses:
@@ -60,7 +61,7 @@ To see live data without batteries, simulate the CAN buses:
 
 Either one puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
 
-On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,light,night,offline}.png` through the device's software renderer.
+On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,light,night,offline,range,range-dock}.png` through the device's software renderer.
 
 ## Tests
 
@@ -68,7 +69,7 @@ On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,l
 cargo test -p vcu-core
 ```
 
-`core/tests/parity.rs` replays a 220-second scenario generated from the prototype's TypeScript (`pnpm parity` in `ui/`). It checks every 10 Hz reading and power view against the TypeScript output. If you change the display logic in the prototype, regenerate the fixture and port the change.
+`core/tests/parity.rs` replays a 220-second scenario generated from the prototype's TypeScript (`pnpm parity` in `ui/`). It checks every 10 Hz reading and power view against the TypeScript output. `core/tests/range.rs` does the same for the range view: 30 cases (times, offsets, windows, speeds, daylight, one side out, at the dock) from `core/tests/fixtures/range.json`, down to the chart's path commands. If you change the display logic in the prototype, run `pnpm parity` again and port the change.
 
 ## Gotchas
 

@@ -1,14 +1,17 @@
 //! Display logic for the VCU, ported from the React prototype (ui/src/display,
 //! ui/shared/protocol.ts). Times are milliseconds as `f64`, like
 //! `performance.now()`, so the same code runs on the device and in WASM.
-//! `tests/parity.rs` checks it against the prototype frame for frame.
+//! `tests/parity.rs` checks it against the prototype frame for frame, and
+//! `tests/range.rs` the range view case by case.
 
 pub mod autoscale;
 pub mod filters;
 pub mod gateway;
 pub mod power;
 pub mod protocol;
+pub mod range;
 pub mod side;
+pub mod sun;
 
 pub use autoscale::AutoScale;
 pub use gateway::SideName;

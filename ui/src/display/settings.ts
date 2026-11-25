@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { DAYLIGHTS } from '../../shared/sun'
 
 function createSetting<T extends string>(key: string, values: readonly T[], fallback: T) {
   const listeners = new Set<() => void>()
@@ -54,6 +55,11 @@ export const useRenderer = renderer.use
 export const setRenderer = renderer.set
 
 
+
+// The bench's daylight setting (shared/sun.ts), which also drives the sim's sun
+const daylight = createSetting('vcu.daylight', DAYLIGHTS, 'now')
+export const useDaylight = daylight.use
+export const setDaylight = daylight.set
 
 // The input row: per source gives shore and each MPPT a slot on its own
 // scale; combined is one bar on the load scale, so input and load compare

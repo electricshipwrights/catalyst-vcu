@@ -6,6 +6,7 @@ import type { WireFrame } from '../shared/can'
 import {
   BUSES,
   BUS_IFACE,
+  SHORE_INLETS,
   SIM_SPEEDS,
   type BusName,
   type BusStatus,
@@ -17,6 +18,7 @@ import {
   type SourceKind,
 } from '../shared/bus'
 import type { Bank } from '../shared/gateway'
+import { DAYLIGHTS } from '../shared/sun'
 import { VESSEL } from '../shared/vessel'
 import { Gateway } from './gateway'
 import { RouterSource, UdpOut } from './router'
@@ -28,7 +30,7 @@ const LOG_DIRS = [path.join(root, 'logs'), path.resolve(root, '..')]
 const PORT = Number(process.env.BUS_PORT ?? 5190)
 
 const BASE: SimParams = {
-  panelA: [26, 26, 29, 29],
+  skyPct: [75, 75, 85, 85],
   propulsionA: 0,
   houseA: 0,
   heaterA: 0,
@@ -152,6 +154,7 @@ const statusMsg = (): ServerStatus => ({
   gateway: { source: gatewaySource, fps, router: router.from, udpOut: udpOut?.address ?? null },
   logs: listLogs(),
   speed: buses.port.sim.speed,
+  inlet: buses.port.sim.inlet,
 })
 
 // Which side each MPPT is on, from the sims (the gateway's own frame)
@@ -165,8 +168,16 @@ function handle(msg: ClientMsg) {
     gateway.allocation(allocation())
     return
   }
-  if (msg.type === 'panels') {
-    if (msg.a.length === 4) BUSES.forEach((b) => buses[b].sim.patch({ panelA: msg.a.map((a) => Math.min(100, Math.max(0, Number(a) || 0))) }))
+  if (msg.type === 'sky') {
+    if (msg.pct.length === 4) BUSES.forEach((b) => buses[b].sim.patch({ skyPct: msg.pct.map((p) => Math.min(100, Math.max(0, Number(p) || 0))) }))
+    return
+  }
+  if (msg.type === 'daylight') {
+    if (DAYLIGHTS.includes(msg.daylight)) BUSES.forEach((b) => (buses[b].sim.daylight = msg.daylight))
+    return
+  }
+  if (msg.type === 'inlet') {
+    if (SHORE_INLETS.includes(msg.inlet)) BUSES.forEach((b) => (buses[b].sim.inlet = msg.inlet))
     return
   }
   if (msg.type === 'speed') {

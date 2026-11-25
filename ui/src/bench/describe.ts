@@ -1,5 +1,6 @@
 import type { Frame } from '../../shared/can'
 import { MPPT_ALLOCATION, decodeAllocation } from '../../shared/gateway'
+import { toF } from './Side'
 import {
   ELCON_COMMAND,
   ELCON_STATUS,
@@ -48,7 +49,7 @@ export function describe(f: Omit<Frame, 't'>): { name: string; value: string } {
   }
   if (f.id === ORION_LIMITS) {
     const l = decodeOrionLimits(f.data)
-    return { name: 'Orion limits', value: l ? `DCL ${l.dcl} CCL ${l.ccl} ${l.tLo}–${l.tHi}°C` : 'bad checksum' }
+    return { name: 'Orion limits', value: l ? `DCL ${l.dcl} CCL ${l.ccl} ${toF(l.tLo).toFixed(0)}–${toF(l.tHi).toFixed(0)}°F` : 'bad checksum' }
   }
   if (f.id === ORION_CELL) {
     const c = decodeOrionCell(f.data)

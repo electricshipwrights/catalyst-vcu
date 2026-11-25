@@ -20,13 +20,13 @@ export function Specs() {
         </dd>
         <dt>charger max</dt>
         <dd>
-          {VESSEL.chargerMaxA} A ({VESSEL.chargerMaxA120V} A on 120 V shore)
+          {VESSEL.chargerMaxA} A each on the 50 A inlet; the 30 A one (fallback) is shared
         </dd>
         <dt>motor max</dt>
         <dd>
           ≈{VESSEL.motorMaxA} A · {VESSEL.motorKw} kW
         </dd>
-        <dt>summer range</dt>
+        <dt>battery range</dt>
         <dd>
           {VESSEL.rangeNm.map(([kn, nm]) => `${nm} nm at ${kn} kn`).join(' · ')}
         </dd>
@@ -36,7 +36,7 @@ export function Specs() {
           sides
         </dd>
         <dt>cruise</dt>
-        <dd>6 kn ≈ {VESSEL.cruiseA} A propulsion</dd>
+        <dd>7 kn ≈ {VESSEL.cruiseA} A propulsion</dd>
         <dt>house max</dt>
         <dd>{VESSEL.houseMaxA} A</dd>
         <dt>BMS limits</dt>

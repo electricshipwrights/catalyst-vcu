@@ -1,13 +1,17 @@
-import { SIM_SPEEDS } from '../../shared/bus'
+import { useEffect } from 'react'
+import { SHORE_INLETS, SIM_SPEEDS } from '../../shared/bus'
+import { DAYLIGHTS } from '../../shared/sun'
 import { send, useServerStatus } from '../bus'
 import {
   RENDERERS,
   THEMES,
   setRenderer,
   setSmoothing,
+  setDaylight,
   setTheme,
   useRenderer,
   useSmoothing,
+  useDaylight,
   useTheme,
   type Smoothing,
 } from '../display/settings'
@@ -51,6 +55,38 @@ export function SpeedToggle() {
       options={SIM_SPEEDS.map((s) => ({ value: s, label: `${s}×` }))}
       value={useServerStatus()?.speed}
       onChange={(speed) => send({ type: 'speed', speed })}
+    />
+  )
+}
+
+// The sun's daylight hours, today's or a season's, for both the sim's MPPTs
+// and the range view's forecast. The display reads it as a setting; the sim
+// is told whenever it changes or the bus server reconnects.
+export function DaylightToggle() {
+  const daylight = useDaylight()
+  const connected = useServerStatus() != null
+  useEffect(() => {
+    if (connected) send({ type: 'daylight', daylight })
+  }, [daylight, connected])
+  return (
+    <ToggleRow
+      label="daylight"
+      options={DAYLIGHTS.map((s) => ({ value: s, label: s }))}
+      value={daylight}
+      onChange={setDaylight}
+    />
+  )
+}
+
+// The dock's shore supply in the sim: both chargers at 80 A on the 50 A
+// inlet, or sharing the 30 A one (about 33 A each)
+export function InletToggle() {
+  return (
+    <ToggleRow
+      label="shore inlet"
+      options={SHORE_INLETS.map((a) => ({ value: a, label: `${a} A` }))}
+      value={useServerStatus()?.inlet}
+      onChange={(inlet) => send({ type: 'inlet', inlet })}
     />
   )
 }

@@ -1,0 +1,398 @@
+// Port of ui/src/display/RangePage.tsx: the range view (button B), how far at
+// a speed before the last side reaches the reserve, with and without the sun,
+// over today (at least 8 hours) or the next 24 hours. Positions are the
+// prototype's CSS pixels; text y values are CSS line-box tops adjusted for
+// Inter's metrics, as in power.slint.
+
+import { Palette, Fonts, Label } from "theme.slint";
+import { ShoreIcon } from "power.slint";
+
+export struct RangeTick {
+    // From the chart's left edge
+    x: length,
+    label: string,
+}
+
+// The view as computed by vcu_core::range::range_view, ready to draw.
+export struct RangeData {
+    online: bool,
+    // "7.0" and NOW, CRUISE or PLAN
+    kn: string,
+    basis: string,
+    // 0 today, 1 24 hours
+    window: int,
+    // "88" or "133+"
+    nm: string,
+    // How long until the reserve ("2:15", "13", "now"; `unit` adds the h),
+    // with the sun and without, and the day and time under it ("" for none)
+    reserve-in: string,
+    reserve-unit: bool,
+    reserve-at: string,
+    no-sun-in: string,
+    no-sun-unit: bool,
+    no-sun-at: string,
+    // On shore power: "full at" or "full", when ("14:20"), and the range
+    // leaving then ("126 nm", "" beyond 3 days)
+    dock: bool,
+    dock-prefix: string,
+    dock-full: string,
+    dock-nm: string,
+    // SVG path commands in the 276×88 chart
+    with-solar: string,
+    battery-only: string,
+    solar: string,
+    ticks: [RangeTick],
+    // Local midnights, from the chart's left edge
+    midnights: [length],
+}
+
+global Chart {
+    out property <length> x: 10px;
+    out property <length> y: 125px;
+    out property <length> w: 276px;
+    out property <length> h: 88px;
+    // Gridlines up the side: full, half, and the reserve (vcu_core RESERVE_PCT)
+    out property <[int]> levels: [100, 50, 9];
+    out property <int> reserve: 9;
+
+    public pure function soc-y(soc: int) -> length {
+        return self.h - soc / 100 * self.h;
+    }
+}
+
+// An outlined touch target: − and +, and the windows when not chosen
+component Button inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    in property <length> font-size: 16px;
+    in property <length> letter-spacing: 0;
+    in property <color> ink: Palette.ink;
+    callback clicked();
+    width: 36px;
+    height: 32px;
+    background: root.on ? Palette.track : transparent;
+    border-width: root.on ? 0 : 1px;
+    border-color: Palette.edge;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: 600;
+        letter-spacing: root.letter-spacing;
+        color: root.ink;
+    }
+
+    TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// How long until the reserve, with its label above and the day and time
+// below; centered in its width, or right-aligned. Positioned at the label's
+// line-box top.
+component When {
+    in property <bool> right;
+    in property <string> label;
+    in property <string> hours;
+    in property <bool> unit;
+    in property <string> time;
+    property <length> hours-w: hours-text.width + (root.unit ? 3px + unit-text.width : 0);
+
+    Label {
+        x: root.right ? root.width - self.width : (root.width - self.width) / 2;
+        y: 0.95px;
+        text: root.label;
+    }
+
+    hours-text := Text {
+        x: root.right ? root.width - root.hours-w : (root.width - root.hours-w) / 2;
+        y: 13.93px;
+        text: root.hours;
+        font-size: 15px;
+        font-weight: 600;
+        color: Palette.ink;
+    }
+
+    // The h, small, on the hours' baseline
+    unit-text := Text {
+        visible: root.unit;
+        x: hours-text.x + hours-text.width + 3px;
+        y: 17.8px;
+        text: "h";
+        font-size: 11px;
+        font-weight: 500;
+        color: Palette.ink;
+    }
+
+    Label {
+        x: root.right ? root.width - self.width : (root.width - self.width) / 2;
+        y: 28.95px;
+        text: root.time;
+    }
+}
+
+export component RangePage {
+    in property <RangeData> data;
+    callback step-speed(int);
+    callback follow-boat();
+    callback window-selected(int);
+    width: 320px;
+    height: 240px;
+
+    if !root.data.online: Text {
+        x: (root.width - self.width) / 2;
+        y: 102.32px;
+        text: "NO DATA";
+        font-size: 16px;
+        font-weight: 700;
+        color: Palette.dim;
+    }
+
+    if !root.data.online: Text {
+        x: (root.width - self.width) / 2;
+        y: 123.35px;
+        text: "BMS silent";
+        font-size: 11px;
+        color: Palette.dim;
+    }
+
+    if root.data.online: Rectangle {
+        Button {
+            x: 10px;
+            y: 28px;
+            text: "−";
+            clicked => {
+                root.step-speed(-1);
+            }
+        }
+
+        // Tapping the speed goes back to following the boat
+        Rectangle {
+            x: 46px;
+            y: 28px;
+            width: 64px;
+            height: 32px;
+
+            Text {
+                x: (parent.width - self.width) / 2;
+                y: 0.43px;
+                text: root.data.kn + " kn";
+                font-size: 15px;
+                font-weight: 600;
+                color: Palette.ink;
+            }
+
+            Label {
+                x: (parent.width - self.width) / 2;
+                y: 18.95px;
+                text: root.data.basis;
+            }
+
+            TouchArea {
+                clicked => {
+                    root.follow-boat();
+                }
+            }
+        }
+
+        Button {
+            x: 110px;
+            y: 28px;
+            text: "+";
+            clicked => {
+                root.step-speed(1);
+            }
+        }
+
+        for name[i] in ["TODAY", "24 HOURS"]: Button {
+            x: 160px + i * 78px;
+            y: 28px;
+            width: 72px;
+            text: name;
+            on: i == root.data.window;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            ink: self.on ? Palette.ink : Palette.dim;
+            clicked => {
+                root.window-selected(i);
+            }
+        }
+
+        // The range, with its unit on the number's baseline
+        nm := Text {
+            x: 10px;
+            y: 71.06px;
+            text: root.data.nm;
+            font-family: Fonts.display;
+            font-size: 28px;
+            font-weight: 600;
+            color: Palette.ink;
+        }
+
+        Text {
+            x: nm.x + nm.width + 3.5px;
+            y: 85.59px;
+            text: "nm";
+            font-size: 13px;
+            font-weight: 500;
+            color: Palette.ink;
+        }
+
+        // When the last side reaches the reserve, with the sun and without
+        When {
+            x: 110px;
+            y: 66px;
+            width: 100px;
+            label: "RESERVE";
+            hours: root.data.reserve-in;
+            unit: root.data.reserve-unit;
+            time: root.data.reserve-at;
+        }
+
+        When {
+            x: 160px;
+            y: 66px;
+            width: 150px;
+            right: true;
+            label: "W/O SUN";
+            hours: root.data.no-sun-in;
+            unit: root.data.no-sun-unit;
+            time: root.data.no-sun-at;
+        }
+
+        // At the dock: when it'll be full, and the range leaving then
+        if root.data.dock: Rectangle {
+            x: 10px;
+            y: 111px;
+            width: 300px;
+            height: 14px;
+
+            icon := ShoreIcon {
+                x: 0;
+                y: 2px;
+                height: 10px;
+                fill: Palette.dim;
+            }
+
+            prefix := Text {
+                x: icon.width + 5px;
+                y: 0.35px;
+                text: root.data.dock-prefix;
+                font-size: 11px;
+                color: Palette.dim;
+            }
+
+            full := Text {
+                x: prefix.x + prefix.width + 3px;
+                y: 0.35px;
+                text: root.data.dock-full;
+                font-size: 11px;
+                font-weight: 600;
+                color: Palette.ink;
+            }
+
+            then := Text {
+                visible: root.data.dock-nm != "";
+                x: full.x + full.width;
+                y: 0.35px;
+                text: ", then";
+                font-size: 11px;
+                color: Palette.dim;
+            }
+
+            Text {
+                visible: root.data.dock-nm != "";
+                x: then.x + then.width + 3px;
+                y: 0.35px;
+                text: root.data.dock-nm;
+                font-size: 11px;
+                font-weight: 600;
+                color: Palette.ink;
+            }
+        }
+
+        // The chart: the sun band, gridlines, midnight, then the SOC lines
+        Path {
+            x: Chart.x;
+            y: Chart.y;
+            width: Chart.w;
+            height: Chart.h;
+            viewbox-width: Chart.w / 1px;
+            viewbox-height: Chart.h / 1px;
+            commands: root.data.solar;
+            fill: Palette.solar.with-alpha(0.35);
+        }
+
+        for soc in Chart.levels: Rectangle {
+            x: Chart.x;
+            y: Chart.y + Chart.soc-y(soc) - 0.5px;
+            width: Chart.w;
+            height: 1px;
+            background: soc == Chart.reserve ? Palette.dim : Palette.edge;
+        }
+
+        // Local midnight, dashed, over its weekday on the time axis
+        for m in root.data.midnights: Rectangle {
+            x: Chart.x + m - 0.5px;
+            y: Chart.y;
+            width: 1px;
+            height: Chart.h;
+
+            for j in 22: Rectangle {
+                y: j * 4px;
+                height: 2px;
+                background: Palette.dim;
+            }
+        }
+
+        Path {
+            x: Chart.x;
+            y: Chart.y;
+            width: Chart.w;
+            height: Chart.h;
+            viewbox-width: Chart.w / 1px;
+            viewbox-height: Chart.h / 1px;
+            commands: root.data.battery-only;
+            stroke: Palette.dim;
+            stroke-width: 2px;
+            stroke-line-cap: round;
+        }
+
+        Path {
+            x: Chart.x;
+            y: Chart.y;
+            width: Chart.w;
+            height: Chart.h;
+            viewbox-width: Chart.w / 1px;
+            viewbox-height: Chart.h / 1px;
+            commands: root.data.with-solar;
+            stroke: Palette.ink;
+            stroke-width: 3px;
+            stroke-line-cap: round;
+        }
+
+        for soc in Chart.levels: Label {
+            x: 310px - self.width;
+            y: Chart.y + Chart.soc-y(soc) - 6.05px;
+            text: soc;
+        }
+
+        Label {
+            x: Chart.x;
+            y: 217.95px;
+            text: "NOW";
+        }
+
+        for t in root.data.ticks: Label {
+            x: Chart.x + t.x - self.width / 2;
+            y: 217.95px;
+            text: t.label;
+        }
+    }
+}

@@ -35,7 +35,7 @@ export type PowerView =
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
 // Under 1 h to the minute ("0:42"), 1–7 h to 15 min ("2:15"), then whole hours ("9h")
-function hm(hours: number) {
+export function hm(hours: number) {
   if (hours < 7) {
     const step = hours >= 1 ? 15 : 1
     const total = Math.round((hours * 60) / step) * step

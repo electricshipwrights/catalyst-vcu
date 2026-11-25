@@ -71,7 +71,7 @@ pub struct PowerView {
 }
 
 /// Under 1 h to the minute ("0:42"), 1–7 h to 15 min ("2:15"), then whole hours ("9h").
-fn hm(hours: f64) -> String {
+pub(crate) fn hm(hours: f64) -> String {
     if hours < 7.0 {
         let step = if hours >= 1.0 { 15.0 } else { 1.0 };
         let total = js_round(hours * 60.0 / step) * step;

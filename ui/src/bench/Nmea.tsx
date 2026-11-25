@@ -15,16 +15,16 @@ const SPLITS: { label: string; sides: Bank[] }[] = [
 
 const mpptsOf = (sides: Bank[], side: BusName) => sides.flatMap((s, i) => (s === side ? [i] : [])).join()
 
-// NMEA 2000, shared by both sides: the four MPPTs (the sun on each one's
-// panels, and which side it feeds), the allocation stand-in (which is TBD),
-// and each side's heater and inverter (assumed to be here)
+// NMEA 2000, shared by both sides: the four MPPTs (each one's solar, as a
+// share of the sun model's clear sky, and which side it feeds), the allocation
+// stand-in (which is TBD), and each side's heater and inverter (assumed to be here)
 export function NmeaBox({ buses, fps }: { buses?: BusStatus[]; fps: Record<number, number> }) {
   const sims = BUSES.flatMap((side) => {
     const s = buses?.find((b) => b.bus === side)
     return s ? [{ side, sim: s.sim, live: s.source === 'sim' }] : []
   })
   const owner = (i: number) => sims.find((s) => s.sim.mppts.includes(i))
-  const panelA = sims[0]?.sim.panelA
+  const skyPct = sims[0]?.sim.skyPct
   return (
     <BusBox bus={GATEWAY_BUSES.nmea} title="NMEA 2000" fps={fps}>
       <div className="presets split">
@@ -40,17 +40,23 @@ export function NmeaBox({ buses, fps }: { buses?: BusStatus[]; fps: Record<numbe
           </button>
         ))}
       </div>
-      {panelA?.map((a, i) => (
-        <Slider
-          key={i}
-          label={`MPPT ${i + 1} sun`}
-          value={a}
-          min={0}
-          max={VESSEL.solarPerMpptA}
-          unit="A"
-          onChange={(v) => send({ type: 'panels', a: panelA.map((p, j) => (j === i ? v : p)) })}
-        />
-      ))}
+      {/* Each slider is a share of the sun model's clear sky right now, so it
+          gives little in the evening and nothing at night; the amps follow it */}
+      {skyPct?.map((pct, i) => {
+        const o = owner(i)
+        return (
+          <Slider
+            key={i}
+            label={`MPPT ${i + 1} solar`}
+            value={pct}
+            min={0}
+            max={100}
+            unit="%"
+            detail={`· ${o && o.live && o.sim.mppt ? o.sim.mpptActualA[i].toFixed(0) : '--'} A`}
+            onChange={(v) => send({ type: 'sky', pct: skyPct.map((p, j) => (j === i ? v : p)) })}
+          />
+        )
+      })}
       <div className="toggles">
         {sims
           .filter((s) => s.live)

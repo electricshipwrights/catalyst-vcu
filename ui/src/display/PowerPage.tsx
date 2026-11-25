@@ -152,7 +152,7 @@ function InputSlots({ side, v }: { side: BusName; v: PowerView }) {
 
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
-function ShoreIcon() {
+export function ShoreIcon() {
   return (
     <svg
       className="shore-icon"

@@ -19,25 +19,30 @@ export const VESSEL = {
   solarPerMpptA: Math.round(1750 / NOMINAL_V), // ≈ 34 A each at full sun
   chargerMaxA: 80, // confirmed: Elcon HK-J-H66-80 (6.6 kW, 80 A max)
   chargerMaxA120V: Math.round(3300 / NOMINAL_V), // ≈ 64 A: 3.3 kW on 110–120 V shore power
+  chargerKw: 6.6,
+  // Shore inlets (assumed): both chargers on the 50 A one at their full 80 A
+  // each, and the 30 A one (120 V, 3.6 kW) as a fallback for docks without
+  // 50 A, shared between them
+  shoreInletKw: { 50: 12, 30: 3.6 },
   motorKw: 15, // Bellmarine DriveMaster 20W EVO
   motorMaxA: Math.round(15000 / NOMINAL_V), // ≈ 293 A, a bit more with motor losses
-  // Summer range (battery plus solar along the way), as [knots, nautical miles].
-  // With the 100 kWh battery and ~19 kWh/day of solar, total power is about
-  // 2.8, 5.3 and 8.8 kW: per side ≈ 27, 52 and 86 A at 51.2 V.
+  // Range on a full battery (100 kWh, motors only, no solar), as [knots,
+  // nautical miles]: from the builder's published estimate (README, Range and
+  // speed), which range.ts's speed curve also uses.
   rangeNm: [
     [5, 250],
     [6, 133],
     [7, 88],
   ],
   usableKwhTotal: 100,
-  reservePct: 9, // assumed: the ~10 kWh of the 110 kWh bank that isn't usable
+  reservePct: 9, // confirmed: the ~10 kWh of the 110 kWh bank that isn't usable
   // Summer, with solar: about 235 kWh per week, the 100 kWh battery plus ~135 kWh
-  // of solar (≈ 19 kWh/day). At the 6-knot cruise that's ~52 h, ~310 nm a week.
+  // of solar (≈ 19 kWh/day). At the 7-knot cruise that's ~29 h, ~206 nm a week.
   summerWeekKwhTotal: 235,
-  // Usual cruise is 6 knots: ≈ 52 A per side in total, so about 40 A of
-  // propulsion with a 10 A house load. (The Oct 6 log's ~1,000 rpm at ~100 A
+  // Usual cruise is 7 knots: 8 kW for both motors in the published estimate,
+  // so ≈ 78 A of propulsion per side. (The Oct 6 log's ~1,000 rpm at ~100 A
   // per motor was about 7.5 knots.)
-  cruiseA: 40,
+  cruiseA: 78,
   houseMaxA: 32,
   // Assumed, to revisit: an electric heater and an inverter (cooking) per side
   heaterMaxA: 40,

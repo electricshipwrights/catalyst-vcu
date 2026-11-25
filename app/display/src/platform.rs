@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
 use slint::platform::{Platform, WindowAdapter};
 use slint::{ComponentHandle, PhysicalSize};
-use vcu_display::{Display, HEIGHT, Palette, SideView, WIDTH};
+use vcu_display::vcu_core::range::{RangeInput, RangeWindow, range_view};
+use vcu_display::vcu_core::sun::Daylight;
+use vcu_display::{Display, HEIGHT, Palette, SideView, WIDTH, range_data};
 
 static START: OnceLock<Instant> = OnceLock::new();
 
@@ -104,10 +106,7 @@ pub fn screenshot(
             },
         ),
     ];
-    for (name, theme, port, stbd) in shots {
-        ui.global::<Palette>().set_theme(theme);
-        ui.set_port(port);
-        ui.set_stbd(stbd);
+    let mut shoot = |name: &str| -> Result<(), Box<dyn Error>> {
         slint::platform::update_timers_and_animations();
         window.draw_if_needed(|renderer| {
             renderer.render(&mut buffer, WIDTH as usize);
@@ -115,6 +114,36 @@ pub fn screenshot(
         let path = format!("{base}-{name}.png");
         write_png(&path, &buffer)?;
         println!("wrote {path}");
+        Ok(())
+    };
+    for (name, theme, port, stbd) in shots {
+        ui.global::<Palette>().set_theme(theme);
+        ui.set_port(port);
+        ui.set_stbd(stbd);
+        shoot(name)?;
+    }
+
+    // The range view: underway on a midsummer afternoon (14:00 PDT), then
+    // charging at the dock that evening (20:30)
+    let side = |soc, house_a, propulsion_a, solar_a, charger_a: f64| RangeInput {
+        soc,
+        house_a,
+        propulsion_a,
+        solar_a,
+        mppts: 2.0,
+        shore: charger_a > 0.0,
+        charger_a,
+    };
+    let ranges = [
+        ("range", 1_782_075_600_000.0, [side(64.0, 3.0, 78.0, 40.0, 0.0), side(71.0, 15.0, 70.0, 44.0, 0.0)]),
+        ("range-dock", 1_782_099_000_000.0, [side(50.0, 10.0, 0.0, 5.0, 60.0), side(95.0, 10.0, 0.0, 5.0, 40.0)]),
+    ];
+    ui.global::<Palette>().set_theme(0);
+    ui.set_page(1);
+    for (name, now, sides) in ranges {
+        let v = range_view(&sides, None, RangeWindow::Today, now, -420.0, Daylight::Now);
+        ui.set_range(range_data(v.as_ref(), RangeWindow::Today, now));
+        shoot(name)?;
     }
     Ok(())
 }

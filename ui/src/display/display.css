@@ -97,6 +97,7 @@
 .row-label,
 .tick,
 .when-label,
+.when-at,
 .settings-label,
 .lcd-nav {
   font-family: var(--text);
@@ -502,8 +503,9 @@
   color: var(--ink);
 }
 
+/* Centered on the reserve times beside it (label, time, day and time) */
 .range-nm {
-  top: 66px;
+  top: 72px;
   left: 10px;
   font-family: var(--display);
   font-size: 28px;
@@ -515,11 +517,11 @@
   font-family: var(--text);
   font-size: 13px;
   font-weight: 500;
-  color: var(--dim);
+  color: var(--ink);
 }
 
-/* Reserve times beside the range: with the sun in the center column, and
-   without it on the right */
+/* Time to the reserve beside the range: with the sun in the center column,
+   and without it on the right, each with its day and time underneath */
 .when {
   top: 66px;
 }
@@ -545,6 +547,16 @@
   line-height: 18px;
 }
 
+.when-time .unit {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.when-at {
+  color: var(--dim);
+}
+
 .chart {
   overflow: visible;
 }
@@ -564,6 +576,12 @@
   stroke-width: 1;
 }
 
+.chart .midnight {
+  stroke: var(--dim);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
 .chart path:not(.sun) {
   fill: none;
   stroke-linejoin: round;
@@ -578,6 +596,27 @@
 .chart .battery-only {
   stroke: var(--dim);
   stroke-width: 2;
+}
+
+.dock {
+  top: 111px;
+  left: 10px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--dim);
+}
+
+.dock .shore-icon {
+  height: 10px;
+  width: auto;
+  margin-right: 5px;
+  vertical-align: -1px;
+  fill: var(--dim);
+}
+
+.dock-value {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .tick.level {

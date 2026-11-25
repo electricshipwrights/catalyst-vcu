@@ -1,5 +1,6 @@
 import { toHex, type WireFrame } from '../shared/can'
-import type { BusName, SimParams, SimPatch, SimTruth } from '../shared/bus'
+import type { BusName, ShoreInlet, SimParams, SimPatch, SimTruth } from '../shared/bus'
+import { clearSkyA, localOffsetMin, sunShift, type Daylight } from '../shared/sun'
 import {
   MOTOR_STATUS,
   ORION_CELL,
@@ -32,7 +33,7 @@ const OCV_LFP: [number, number][] = [
 const R_CELL = 0.00045
 const CCL_MAX = 182
 const DCL_MAX = 494
-const CHARGER_POWER_W = 6600 * 0.95
+const CHARGER_EFFICIENCY = 0.95
 const CHARGE_V_MAX = 16 * 3.55
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -63,6 +64,10 @@ export class BatterySim {
   private offsets = ORION_CELL_IDS.map(() => noise(0.006))
   private timers: ReturnType<typeof setInterval>[] = []
   speed = 1
+  // The bench's daylight setting: the sun as now, or as in a season
+  daylight: Daylight = 'now'
+  // The dock's inlet, shared by both chargers
+  inlet: ShoreInlet = 50
   private last = performance.now()
   private sid = 0
   // Report the MPPTs at once after an allocation change, not up to a second later
@@ -76,7 +81,7 @@ export class BatterySim {
   ) {
     this.params = params
     this.soc = soc
-    this.panel = [...params.panelA]
+    this.panel = this.panelTarget()
     this.propulsion = params.propulsionA
     this.house = params.houseA
     this.heater = params.heaterA
@@ -89,7 +94,9 @@ export class BatterySim {
   }
 
   get chargerTarget() {
-    return this.chargerOn ? Math.min(VESSEL.chargerMaxA, CHARGER_POWER_W / this.packV, this.ccl) : 0
+    // Each charger gets half the inlet, up to its own 6.6 kW
+    const kw = Math.min(VESSEL.chargerKw, VESSEL.shoreInletKw[this.inlet] / 2)
+    return this.chargerOn ? Math.min(VESSEL.chargerMaxA, (kw * 1000 * CHARGER_EFFICIENCY) / this.packV, this.ccl) : 0
   }
 
   patch({ soc, ...rest }: SimPatch) {
@@ -128,6 +135,14 @@ export class BatterySim {
 
   get houseTotal() {
     return this.house + this.heater + this.inverter
+  }
+
+  // What each MPPT's panels could give now: a quarter of the array's clear-sky
+  // current, for the time of day (and season, with the daylight setting), × its sky
+  private panelTarget() {
+    const now = Date.now()
+    const clearA = clearSkyA(now + sunShift(now, this.daylight, localOffsetMin(now))) / 4
+    return this.params.skyPct.map((pct) => (clearA * pct) / 100)
   }
 
   // What this side's MPPTs' panels give now; reallocating one moves its
@@ -257,7 +272,8 @@ export class BatterySim {
     const dt = Math.min(0.1, (now - this.last) / 1000) * this.speed
     this.last = now
     const k = (tau: number) => 1 - Math.exp(-dt / tau)
-    this.panel = this.panel.map((a, i) => a + ((this.params.panelA[i] ?? 0) - a) * k(0.4))
+    const target = this.panelTarget()
+    this.panel = this.panel.map((a, i) => a + ((target[i] ?? 0) - a) * k(0.4))
     this.propulsion += (this.params.propulsionA - this.propulsion) * k(0.6)
     this.house += (this.params.houseA - this.house) * k(0.3)
     this.heater += (this.params.heaterA - this.heater) * k(0.3)

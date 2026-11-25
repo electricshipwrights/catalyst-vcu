@@ -11,12 +11,14 @@ export function Slider(props: {
   max: number
   step?: number
   unit: string
+  // Shown after the value, e.g. what the setting gives: "· 13 A"
+  detail?: string
   onChange: (v: number) => void
 }) {
   const [draft, setDraft] = useState<number | null>(null)
   const value = draft ?? props.value
   return (
-    <label className="slider">
+    <label className={props.detail != null ? 'slider detailed' : 'slider'}>
       <span>{props.label}</span>
       <input
         type="range"
@@ -34,12 +36,17 @@ export function Slider(props: {
       />
       <output>
         {value.toFixed(props.step && props.step < 1 ? 1 : 0)} {props.unit}
+        {props.detail != null && ` ${props.detail}`}
       </output>
     </label>
   )
 }
 
 export const patchSim = (side: BusName, patch: SimPatch) => send({ type: 'sim', bus: side, patch })
+
+// The sim and the BMS work in °C; the bench shows °F
+export const toF = (c: number) => (c * 9) / 5 + 32
+const toC = (f: number) => ((f - 32) * 5) / 9
 
 export function Check({
   side,
@@ -126,7 +133,7 @@ function BmsControls({ side, sim }: { side: BusName; sim: SimTruth }) {
         <Check side={side} sim={sim} k="bms" label="Orion BMS on bus" />
       </div>
       <Slider label="SOC" value={sim.soc} min={0} max={100} step={0.5} unit="%" onChange={(v) => patch({ soc: v })} />
-      <Slider label="Temp" value={sim.tempC} min={-25} max={65} unit="°C" onChange={(v) => patch({ tempC: v })} />
+      <Slider label="Temp" value={Math.round(toF(sim.tempC))} min={-13} max={149} unit="°F" onChange={(v) => patch({ tempC: toC(v) })} />
       <Slider label="Base load" value={sim.houseA} min={0} max={VESSEL.houseMaxA} unit="A" onChange={(v) => patch({ houseA: v })} />
       <dl className="truth">
         <dt>pack</dt>
@@ -136,7 +143,7 @@ function BmsControls({ side, sim }: { side: BusName; sim: SimTruth }) {
         </dd>
         <dt>temps</dt>
         <dd>
-          {sim.tLo.toFixed(0)}–{sim.tHi.toFixed(0)} °C
+          {toF(sim.tLo).toFixed(0)}–{toF(sim.tHi).toFixed(0)} °F
         </dd>
         <dt>limits</dt>
         <dd>

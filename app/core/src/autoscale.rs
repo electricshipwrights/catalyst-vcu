@@ -1,11 +1,12 @@
 //! Port of ui/src/display/autoScale.ts: the load bar's full scale, shared by
-//! both sides. It steps up soon after a bar nears its end and back down only
-//! once well clear for a while, so it changes rarely.
+//! both sides. It steps up as soon as a bar nears its end (a brief hold skips
+//! single-frame spikes) and back down only once well clear for a while, so it
+//! changes rarely.
 
 pub const SCALE_STEPS_A: [f64; 4] = [50.0, 100.0, 200.0, 300.0];
 pub const SCALE_DEFAULT_A: f64 = 100.0;
-const UP_AT: f64 = 0.9;
-const UP_AFTER_MS: f64 = 2000.0;
+const UP_AT: f64 = 0.96;
+const UP_AFTER_MS: f64 = 300.0;
 /// Of the next step down.
 const DOWN_AT: f64 = 0.4;
 const DOWN_AFTER_MS: f64 = 30000.0;

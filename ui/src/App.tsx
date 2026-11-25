@@ -5,7 +5,7 @@ import { NmeaBox } from './bench/Nmea'
 import { Presets } from './bench/Presets'
 import { SideColumn } from './bench/Side'
 import { Specs } from './bench/Specs'
-import { RendererToggle, SmoothingToggle, SpeedToggle, ThemeToggle } from './bench/Toggles'
+import { DaylightToggle, InletToggle, RendererToggle, SmoothingToggle, SpeedToggle, ThemeToggle } from './bench/Toggles'
 import { useServerStatus } from './bus'
 import { BUTTONS, pressButton } from './display/buttons'
 import { Display } from './display/Display'
@@ -59,9 +59,9 @@ export function App() {
       <div className="toolbar">
         <div className="controls">
           <Presets />
-          <SmoothingToggle />
           <SpeedToggle />
-          <ThemeToggle />
+          <DaylightToggle />
+          <InletToggle />
         </div>
         <div className="controls controls-end">
           <div className="device-meta">
@@ -76,6 +76,8 @@ export function App() {
             </a>
           </div>
           <RendererToggle />
+          <ThemeToggle />
+          <SmoothingToggle />
         </div>
       </div>
       <div className="stage" ref={stageRef}>

@@ -7,7 +7,9 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use slint::{ComponentHandle, Timer, TimerMode};
-use vcu_core::{AutoScale, Eta, PowerView, Side, SideName, Smoothing, power_view};
+use vcu_core::range::{RangeInput, RangeView, RangeWindow, chart_paths, range_view, step_speed, to_fixed1};
+use vcu_core::sun::Daylight;
+use vcu_core::{AutoScale, Eta, PowerView, Reading, Side, SideName, Smoothing, power_view};
 
 slint::include_modules!();
 
@@ -44,7 +46,21 @@ impl Sides {
     }
 }
 
-/// Settings shared with the prototype: `vcu.smoothing`, `vcu.theme` and `vcu.input`.
+/// Settings the readings depend on; theme and input live in the UI's globals.
+#[derive(Default)]
+pub struct Settings {
+    pub smoothing: Cell<Smoothing>,
+    /// The bench's daylight setting (the sun as now, or a season's); always
+    /// now on the device.
+    pub daylight: Cell<Daylight>,
+}
+
+/// Wall-clock time for the range view: ms since the epoch, and the local
+/// time's offset in minutes east of UTC.
+pub type WallClock = fn() -> (f64, f64);
+
+/// Settings shared with the prototype: `vcu.smoothing`, `vcu.theme`,
+/// `vcu.input` and (bench only) `vcu.daylight`.
 pub fn parse_smoothing(s: &str) -> Option<Smoothing> {
     match s.trim() {
         "smooth" => Some(Smoothing::Smooth),
@@ -109,19 +125,147 @@ pub fn side_view(v: Option<PowerView>) -> SideView {
     }
 }
 
+/// One side as the range view needs it: the smoothed currents, like the power
+/// view's bars.
+fn range_input(r: &Reading) -> RangeInput {
+    let c = r.smooth;
+    RangeInput {
+        soc: r.live.soc,
+        house_a: c.house_a.max(0.0),
+        propulsion_a: c.propulsion_a.unwrap_or(0.0).max(0.0),
+        solar_a: c.solar_a.unwrap_or(0.0).max(0.0),
+        mppts: r.live.mppts as f64,
+        shore: r.live.shore,
+        charger_a: c.charger_a.unwrap_or(0.0).max(0.0),
+    }
+}
+
+/// The range view's chart, in range.slint.
+const CHART_W: f64 = 276.0;
+const CHART_H: f64 = 88.0;
+
+/// JavaScript's `Math.round`, for the whole miles.
+fn round(x: f64) -> f64 {
+    (x + 0.5).floor()
+}
+
+pub fn range_data(v: Option<&RangeView>, window: RangeWindow, now: f64) -> RangeData {
+    let Some(v) = v else {
+        return RangeData::default();
+    };
+    // "2:15h" is drawn as "2:15" and a small h
+    let hours = |t: &str| match t.strip_suffix('h') {
+        Some(n) => (n.to_string().into(), true),
+        None => (t.to_string().into(), false),
+    };
+    let (reserve_in, reserve_unit) = hours(&v.reserve_in);
+    let (no_sun_in, no_sun_unit) = hours(&v.no_sun_in);
+    let x = |at: f64| (((at - now) / (v.end - now)) * CHART_W) as f32;
+    let paths = chart_paths(v, now, CHART_W, CHART_H);
+    let dock = v.dock.as_ref();
+    RangeData {
+        online: true,
+        kn: to_fixed1(v.kn).into(),
+        basis: v.basis.label().into(),
+        window: i32::from(window == RangeWindow::Day),
+        nm: format!("{}{}", round(v.projection.range_nm), if v.beyond { "+" } else { "" }).into(),
+        reserve_in,
+        reserve_unit,
+        reserve_at: v.reserve_at.clone().unwrap_or_default().into(),
+        no_sun_in,
+        no_sun_unit,
+        no_sun_at: v.no_sun_at.clone().unwrap_or_default().into(),
+        dock: dock.is_some(),
+        dock_prefix: if dock.is_some_and(|d| d.full == "now") { "full" } else { "full at" }.into(),
+        dock_full: dock.map(|d| d.full.clone()).unwrap_or_default().into(),
+        dock_nm: dock
+            .and_then(|d| d.nm)
+            .map(|nm| format!("{} nm", round(nm)))
+            .unwrap_or_default()
+            .into(),
+        with_solar: paths.with_solar.into(),
+        battery_only: paths.battery_only.into(),
+        solar: paths.solar.into(),
+        ticks: Rc::new(slint::VecModel::from(
+            v.ticks
+                .iter()
+                .map(|t| RangeTick {
+                    x: x(t.at),
+                    label: t.label.clone().into(),
+                })
+                .collect::<Vec<_>>(),
+        ))
+        .into(),
+        midnights: Rc::new(slint::VecModel::from(
+            v.midnights.iter().map(|&m| x(m)).collect::<Vec<_>>(),
+        ))
+        .into(),
+    }
+}
+
+/// What the range view was asked for, and what it's drawn from.
+#[derive(Default)]
+struct RangeState {
+    /// A speed picked on the view; `None` follows the boat.
+    plan_kn: Option<f64>,
+    window: RangeWindow,
+    inputs: Vec<RangeInput>,
+    /// The speed shown, for the stepper.
+    kn: Option<f64>,
+}
+
 /// Keeps the display's readings running; drop it to stop them.
 pub struct Driver {
     _timer: Timer,
 }
 
 /// Pushes readings to the UI at 10 Hz. `now_ms` is a monotonic clock in
-/// milliseconds, the same one frames are stamped with.
+/// milliseconds, the same one frames are stamped with; `wall` is the time of
+/// day, for the range view.
 pub fn drive(
     ui: &Display,
     sides: Rc<RefCell<Sides>>,
-    smoothing: Rc<Cell<Smoothing>>,
+    settings: Rc<Settings>,
     now_ms: fn() -> f64,
+    wall: WallClock,
 ) -> Driver {
+    let range = Rc::new(RefCell::new(RangeState::default()));
+    let update_range: Rc<dyn Fn()> = {
+        let (weak, range, settings) = (ui.as_weak(), range.clone(), settings.clone());
+        Rc::new(move || {
+            let Some(ui) = weak.upgrade() else { return };
+            let (now, offset_min) = wall();
+            let mut r = range.borrow_mut();
+            let v = range_view(&r.inputs, r.plan_kn, r.window, now, offset_min, settings.daylight.get());
+            r.kn = v.as_ref().map(|v| v.kn);
+            ui.set_range(range_data(v.as_ref(), r.window, now));
+        })
+    };
+    ui.on_step_speed({
+        let (range, update) = (range.clone(), update_range.clone());
+        move |dir| {
+            {
+                let mut r = range.borrow_mut();
+                r.plan_kn = r.kn.map(|kn| step_speed(kn, dir));
+            }
+            update();
+        }
+    });
+    ui.on_follow_boat({
+        let (range, update) = (range.clone(), update_range.clone());
+        move || {
+            range.borrow_mut().plan_kn = None;
+            update();
+        }
+    });
+    ui.on_window_selected({
+        let (range, update) = (range.clone(), update_range.clone());
+        move |w| {
+            range.borrow_mut().window = if w == 1 { RangeWindow::Day } else { RangeWindow::Today };
+            update();
+        }
+    });
+
     let readings = Timer::default();
     let weak = ui.as_weak();
     let mut scale = AutoScale::default();
@@ -129,9 +273,10 @@ pub fn drive(
         let Some(ui) = weak.upgrade() else { return };
         let now = now_ms();
         let mut sides = sides.borrow_mut();
-        let s = smoothing.get();
-        let port = power_view(sides.port.tick(now).as_ref(), s);
-        let stbd = power_view(sides.stbd.tick(now).as_ref(), s);
+        let s = settings.smoothing.get();
+        let (port_reading, stbd_reading) = (sides.port.tick(now), sides.stbd.tick(now));
+        let port = power_view(port_reading.as_ref(), s);
+        let stbd = power_view(stbd_reading.as_ref(), s);
         // The load scale fits the longer load bar (and the input in combined view)
         let combined = ui.global::<Prefs>().get_input() == 1;
         let need = [&port, &stbd]
@@ -142,6 +287,21 @@ pub fn drive(
         ui.set_scale_max(scale.push(now, need) as i32);
         ui.set_port(side_view(port));
         ui.set_stbd(side_view(stbd));
+
+        // The range view, kept current so it opens ready; leaving it forgets
+        // the speed and window picked there, like the prototype
+        {
+            let mut r = range.borrow_mut();
+            if ui.get_page() != 1 {
+                (r.plan_kn, r.window) = (None, RangeWindow::Today);
+            }
+            r.inputs = [&port_reading, &stbd_reading]
+                .into_iter()
+                .flatten()
+                .map(range_input)
+                .collect();
+        }
+        update_range();
     });
     Driver { _timer: readings }
 }

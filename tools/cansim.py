@@ -74,7 +74,7 @@ def n2k_id(source):
 
 # Demo: (solar, propulsion, house, charger) per step, from the bench's presets
 STEPS = [
-    (55, 40, 10, 0),    # cruise: 6 knots, about 40 A propulsion per side
+    (55, 78, 10, 0),    # cruise: 7 knots, about 78 A propulsion per side
     (55, 320, 10, 0),   # full throttle
     (60, 0, 10, 0),     # moored, sun
     (0, 0, 10, 70),     # shore power (the charger tops out at 80 A)
