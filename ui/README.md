@@ -29,7 +29,7 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 
 ## Slint renderer
 
-The bench can show either this React display or the Slint port in `../app`, which is what runs on the device. The Slint view shows the LCD's exact pixels. It shows Slint by default; switch with **renderer** in the toolbar. To build the Slint version, run `pnpm build:wasm` (setup is in `../app/README.md`). `pnpm parity` regenerates the fixtures that keep the Rust logic in step with `src/display` (the power view's readings and the range view's cases).
+The bench can show either this React display or the Slint port in `../app`, which is what runs on the device. The Slint view shows the LCD's exact pixels. It shows React by default; switch with **renderer** in the toolbar. To build the Slint version, run `pnpm build:wasm` (setup is in `../app/README.md`). `pnpm parity` regenerates the fixtures that keep the Rust logic in step with `src/display` (the power view's readings and the range view's cases).
 
 ## Static hosting
 

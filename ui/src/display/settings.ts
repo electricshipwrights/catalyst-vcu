@@ -50,7 +50,7 @@ export const setTheme = theme.set
 
 export const RENDERERS = ['react', 'slint'] as const
 export type Renderer = (typeof RENDERERS)[number]
-const renderer = createSetting('vcu.renderer', RENDERERS, 'slint')
+const renderer = createSetting('vcu.renderer', RENDERERS, 'react')
 export const useRenderer = renderer.use
 export const setRenderer = renderer.set
 
@@ -65,6 +65,6 @@ export const setDaylight = daylight.set
 // scale; combined is one bar on the load scale, so input and load compare
 export const INPUT_VIEWS = ['per source', 'combined'] as const
 export type InputView = (typeof INPUT_VIEWS)[number]
-const inputView = createSetting('vcu.input', INPUT_VIEWS, 'per source')
+const inputView = createSetting('vcu.input', INPUT_VIEWS, 'combined')
 export const useInputView = inputView.use
 export const setInputView = inputView.set

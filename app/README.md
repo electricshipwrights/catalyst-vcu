@@ -18,7 +18,7 @@ You need Rust (`rustup`) with the `wasm32-unknown-unknown` target, plus `wasm-bi
 ```
 cd ui
 pnpm build:wasm     # app/web → ui/src/slint/pkg
-pnpm dev            # bench; Slint is the default renderer (toggle "renderer" for React)
+pnpm dev            # bench; React is the default renderer (toggle "renderer" for Slint)
 ```
 
 - After changing `.slint` or Rust files, run `pnpm build:wasm` again. Vite reloads the page.
