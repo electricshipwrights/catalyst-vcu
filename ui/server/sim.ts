@@ -139,11 +139,17 @@ export class BatterySim {
     return this.house + this.heater + this.inverter
   }
 
-  // What each MPPT's panels could give now: a quarter of the array's clear-sky
-  // current, for the time of day (and season, with the daylight setting), × its sky
-  private panelTarget() {
+  // The sim's clock: now, moved by the bench's time of day and season. Its sun
+  // follows it, and the gateway stand-in sends it as a GPS would (PGN 126992).
+  clock() {
     const now = Date.now() + this.clockShiftMs
-    const clearA = clearSkyA(now + sunShift(now, this.daylight, localOffsetMin(now))) / 4
+    return now + sunShift(now, this.daylight, localOffsetMin(now))
+  }
+
+  // What each MPPT's panels could give now: a quarter of the array's clear-sky
+  // current at the sim's clock, × its sky
+  private panelTarget() {
+    const clearA = clearSkyA(this.clock()) / 4
     return this.params.skyPct.map((pct) => (clearA * pct) / 100)
   }
 

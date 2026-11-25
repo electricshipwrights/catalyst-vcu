@@ -10,7 +10,6 @@ use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferTyp
 use slint::platform::{Platform, WindowAdapter};
 use slint::{ComponentHandle, PhysicalSize};
 use vcu_display::vcu_core::range::{RangeInput, RangeWindow, range_view};
-use vcu_display::vcu_core::sun::Daylight;
 use vcu_display::{Display, HEIGHT, Palette, SideView, WIDTH, range_data};
 
 static START: OnceLock<Instant> = OnceLock::new();
@@ -141,7 +140,7 @@ pub fn screenshot(
     ui.global::<Palette>().set_theme(0);
     ui.set_page(1);
     for (name, now, sides) in ranges {
-        let v = range_view(&sides, None, RangeWindow::Today, now, -420.0, Daylight::Now);
+        let v = range_view(&sides, None, RangeWindow::Today, now, -420.0);
         ui.set_range(range_data(v.as_ref(), RangeWindow::Today, now));
         shoot(name)?;
     }

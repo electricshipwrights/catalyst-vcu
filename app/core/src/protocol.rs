@@ -10,6 +10,9 @@ pub const MPPT_SOURCES: [u8; 4] = [0x22, 0x23, 0x24, 0x25];
 pub const INVERTER_SOURCES: [u8; 2] = [0x30, 0x31];
 pub const HEATER_SOURCES: [u8; 2] = [0x32, 0x33];
 /// Placeholder until the real motor controller's frame is known.
+/// NMEA 2000 System Time (CAN6): UTC date and time from a GPS or chartplotter.
+pub const PGN_SYSTEM_TIME: u32 = 126992;
+
 pub const MOTOR_STATUS: u32 = 0x700;
 pub const ELCON_STATUS: u32 = 0x18ff50e5;
 pub const ELCON_FLAG_INPUT_VOLTAGE: u8 = 4;
@@ -100,6 +103,17 @@ pub fn decode_battery_status(d: &[u8]) -> Option<BatteryStatus> {
     })
 }
 
+/// PGN 126992 as UTC ms since the epoch: days since 1970 (bytes 2–3) and the
+/// time of day in 0.0001 s (bytes 4–7); `None` when either isn't available.
+pub fn decode_system_time(d: &[u8]) -> Option<f64> {
+    if d.len() != 8 {
+        return None;
+    }
+    let days = u16le(d, 2);
+    let t = u32::from_le_bytes([d[4], d[5], d[6], d[7]]);
+    (days != 0xffff && t < 0xffff_fffe).then(|| f64::from(days) * 86_400_000.0 + f64::from(t) / 10.0)
+}
+
 pub fn decode_motor_status(d: &[u8]) -> Option<f64> {
     (d.len() >= 2).then(|| s16be(d, 0) / 10.0)
 }
@@ -148,6 +162,14 @@ mod tests {
         assert_eq!((n2k_pgn(id), n2k_source(id)), (PGN_BATTERY_STATUS, 0x22));
         // PDU1 (destination-addressed) PGNs drop the destination byte
         assert_eq!(n2k_pgn((3 << 26) | (0xEA12 << 8) | 0x05), 0xEA00);
+    }
+
+    #[test]
+    fn decodes_n2k_system_time() {
+        // 2026-06-21 22:00:00.5 UTC: day 20625, 79200.5 s
+        let d = [7, 0xF0, 0x91, 0x50, 0x88, 0x09, 0x35, 0x2F];
+        assert_eq!(decode_system_time(&d), Some(1_782_079_200_500.0));
+        assert!(decode_system_time(&[7, 0xF0, 0xFF, 0xFF, 0, 0, 0, 0]).is_none());
     }
 
     #[test]

@@ -54,14 +54,15 @@ const renderer = createSetting('vcu.renderer', RENDERERS, 'react')
 export const useRenderer = renderer.use
 export const setRenderer = renderer.set
 
-// The bench's daylight setting (shared/sun.ts), which also drives the sim's sun
+// The bench's season (shared/sun.ts): moves the sim's clock, and with it the
+// sun and the NMEA 2000 time the displays follow
 const daylight = createSetting('vcu.daylight', DAYLIGHTS, 'now')
 export const useDaylight = daylight.use
 export const setDaylight = daylight.set
 
-// The bench's time of day (shared/sun.ts): picking one moves the clock to that
-// time today, and it runs on from there. The shift is saved beside it, so the
-// sim, both displays and other tabs keep one clock.
+// The bench's time of day (shared/sun.ts): picking one moves the sim's clock
+// to that time today, and it runs on from there. The shift is saved beside it,
+// so it survives a reload and other tabs agree.
 const timeOfDay = createSetting('vcu.timeOfDay', TIMES_OF_DAY, 'now')
 export const useTimeOfDay = timeOfDay.use
 

@@ -62,9 +62,9 @@ export function SpeedToggle() {
   )
 }
 
-// The sun's daylight hours, today's or a season's, for both the sim's MPPTs
-// and the range view's forecast. The display reads it as a setting; the sim
-// is told whenever it changes or the bus server reconnects.
+// The season: today's sun, or a solstice's or equinox's. It moves the sim's
+// clock, so its MPPTs and the NMEA 2000 time the displays follow. The sim is
+// told whenever it changes or the bus server reconnects.
 export function DaylightToggle() {
   const daylight = useDaylight()
   const connected = useServerStatus() != null
@@ -73,7 +73,7 @@ export function DaylightToggle() {
   }, [daylight, connected])
   return (
     <ToggleRow
-      label="daylight"
+      label="season"
       options={DAYLIGHTS.map((s) => ({ value: s, label: s }))}
       value={daylight}
       onChange={setDaylight}
@@ -82,8 +82,9 @@ export function DaylightToggle() {
 }
 
 // The clock as it is, or moved to the morning, afternoon or night today
-// (labeled with their times), for the sim's sun and the range view; it runs
-// on from there. The sim is told whenever it changes or the bus server reconnects.
+// (labeled with their times), for the sim's sun and the NMEA 2000 time the
+// displays follow; it runs on from there. The sim is told whenever it changes
+// or the bus server reconnects.
 export function TimeOfDayToggle() {
   const shiftMs = useClockShift()
   const connected = useServerStatus() != null

@@ -3,7 +3,6 @@
 
 use serde_json::{Value, json};
 use vcu_core::range::{RangeInput, RangeView, RangeWindow, chart_paths, range_view, speed_for};
-use vcu_core::sun::Daylight;
 
 fn same(a: f64, b: &Value) -> bool {
     let b = b.as_f64().unwrap();
@@ -75,7 +74,6 @@ fn matches_the_typescript_prototype() {
             window,
             now,
             inp["offsetMin"].as_f64().unwrap(),
-            Daylight::parse(inp["daylight"].as_str().unwrap()).unwrap(),
         )
         .unwrap();
 

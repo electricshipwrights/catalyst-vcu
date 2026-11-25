@@ -11,6 +11,8 @@
 //!                      A/B/C buttons are above the screen) or 0
 //!   VCU_TOUCH*         see touch.rs
 //!   TZ                 local time for the range view, if /etc/localtime isn't set
+//!                      (its clock is NMEA 2000 System Time when on the bus,
+//!                      otherwise the board's)
 
 mod can;
 mod fb;
@@ -176,8 +178,17 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, ui: &Display) -> Result<(), Box<d
         }
         {
             let mut sides = sides.borrow_mut();
-            port.poll(|id, ext, data| sides.port.ingest(id, ext, data, now_ms()));
-            stbd.poll(|id, ext, data| sides.stbd.ingest(id, ext, data, now_ms()));
+            // NMEA 2000 time may come on either bus
+            port.poll(|id, ext, data| {
+                let at = now_ms();
+                sides.clock.ingest(id, ext, data, at);
+                sides.port.ingest(id, ext, data, at);
+            });
+            stbd.poll(|id, ext, data| {
+                let at = now_ms();
+                sides.clock.ingest(id, ext, data, at);
+                sides.stbd.ingest(id, ext, data, at);
+            });
         }
 
         window.draw_if_needed(|renderer| {

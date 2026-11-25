@@ -14,12 +14,19 @@ export const MPPT_SOURCES = new Set(MPPT_SOURCE_LIST)
 export const INVERTER_SOURCES = { port: 0x30, stbd: 0x31 } as const
 export const HEATER_SOURCES = { port: 0x32, stbd: 0x33 } as const
 
+// NMEA 2000 System Time (CAN6): UTC date and time from a GPS or chartplotter,
+// which the display's clock follows while it's on the bus. The bench's sim and
+// the board demo send it from this address, standing in for a GPS.
+export const PGN_SYSTEM_TIME = 126992
+export const TIME_SOURCE = 0x10
+
 export const MOTOR_STATUS = 0x700
 
 const u16be = (d: Uint8Array, i: number) => (d[i] << 8) | d[i + 1]
 const s16be = (d: Uint8Array, i: number) => (u16be(d, i) << 16) >> 16
 const u16le = (d: Uint8Array, i: number) => d[i] | (d[i + 1] << 8)
 const s16le = (d: Uint8Array, i: number) => (u16le(d, i) << 16) >> 16
+const u32le = (d: Uint8Array, i: number) => (u16le(d, i) | (u16le(d, i + 2) << 16)) >>> 0
 const s8 = (b: number) => (b << 24) >> 24
 const be = (v: number) => [(v >> 8) & 0xff, v & 0xff]
 const le = (v: number) => [v & 0xff, (v >> 8) & 0xff]
@@ -117,6 +124,26 @@ export function decodeBatteryStatus(d: Uint8Array): BatteryStatus | null {
     tempC: t === 0xffff ? null : t / 100 - 273.15,
     sid: d[7],
   }
+}
+
+const DAY_MS = 86_400_000
+
+// sid, then the time source (0: GPS) under reserved bits, days since 1970,
+// and the time of day in 0.0001 s; ms is UTC since the epoch
+export type SystemTime = { sid: number; ms: number }
+
+export function encodeSystemTime(p: SystemTime) {
+  const days = Math.floor(p.ms / DAY_MS)
+  const t = Math.round((p.ms - days * DAY_MS) * 10)
+  return Uint8Array.from([p.sid & 0xff, 0xf0, ...le(days), ...le(t & 0xffff), ...le(t >>> 16)])
+}
+
+// UTC ms since the epoch, or null when the date or time isn't available
+export function decodeSystemTime(d: Uint8Array): number | null {
+  if (d.length !== 8) return null
+  const days = u16le(d, 2)
+  const t = u32le(d, 4)
+  return days === 0xffff || t >= 0xfffffffe ? null : days * DAY_MS + t / 10
 }
 
 export type MotorStatus = { a: number }

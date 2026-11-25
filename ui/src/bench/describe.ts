@@ -18,6 +18,8 @@ import {
   decodeOrionPack,
   n2kPgn,
   n2kSource,
+  PGN_SYSTEM_TIME,
+  decodeSystemTime,
 } from '../../shared/protocol'
 
 const hex2 = (n: number) => `0x${n.toString(16).toUpperCase().padStart(2, '0')}`
@@ -37,6 +39,10 @@ export function describe(f: Omit<Frame, 't'>): { name: string; value: string } {
   if (f.ext) {
     const pgn = n2kPgn(f.id)
     const name = `N2K ${pgn} src ${hex2(n2kSource(f.id))}`
+    if (pgn === PGN_SYSTEM_TIME) {
+      const ms = decodeSystemTime(f.data)
+      return { name: `${name} system time`, value: ms == null ? 'n/a' : `${new Date(ms).toISOString().slice(0, 19).replace('T', ' ')} UTC` }
+    }
     if (pgn === PGN_BATTERY_STATUS) {
       const b = decodeBatteryStatus(f.data)
       return { name: `${name} batt status`, value: b ? `${b.v.toFixed(2)} V ${b.a?.toFixed(1) ?? 'n/a'} A` : 'bad' }

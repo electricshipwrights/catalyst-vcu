@@ -31,7 +31,6 @@ import { AutoScale } from '../src/display/autoScale'
 import { EtaHold } from '../src/display/etaHold'
 import { powerView, type PowerView } from '../src/display/power'
 import { WINDOWS, chartPaths, rangeView, speedFor, type RangeInput } from '../src/display/range'
-import type { Daylight } from '../shared/sun'
 import { emptyRaw, ingest, read, type Currents } from '../src/display/sideState'
 import { StepFilter } from '../src/display/stepFilter'
 import type { SideReading } from '../src/display/useSide'
@@ -200,7 +199,6 @@ const SIDES: RangeInput[][] = [
   [side(9, 4, 0, 0, 2), side(8, 4, 0, 0, 2)], // both at the reserve
 ]
 const PLANS = [null, 5, 9.5]
-const DAYLIGHT_CASES: Daylight[] = ['now', 'winter', 'summer', 'spring/fall']
 const rangeCases = Array.from({ length: 30 }, (_, i) => {
   const [now, offsetMin] = TIMES[i % TIMES.length]
   const input = {
@@ -210,9 +208,8 @@ const rangeCases = Array.from({ length: 30 }, (_, i) => {
     w: WINDOWS[Math.floor(i / TIMES.length) % WINDOWS.length],
     now,
     offsetMin,
-    daylight: DAYLIGHT_CASES[i % DAYLIGHT_CASES.length],
   }
-  const v = rangeView(input.sides, input.planKn, input.w, now, offsetMin, input.daylight)!
+  const v = rangeView(input.sides, input.planKn, input.w, now, offsetMin)!
   const { points, ...projection } = v.projection
   return { input, out: { ...v, projection: { ...projection, points: points.length }, paths: chartPaths(v, now, 276, 88) } }
 })

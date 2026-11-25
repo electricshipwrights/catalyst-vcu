@@ -1,4 +1,4 @@
-import { Fragment, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { BusName } from "../../shared/bus";
 import { AutoScale } from "./autoScale";
 import { SHORE_SLOT_A, SOLAR_SLOT_A, powerView, type PowerView } from "./power";
@@ -17,6 +17,32 @@ const SHORE = -1;
 
 type SegKind = "solar" | "shore" | "base" | "heater" | "inverter" | "propulsion";
 type Seg = { from: number; to: number; kind: SegKind };
+
+// A scale change eases over this long, so the bars grow or shrink smoothly
+// instead of jumping
+const SCALE_EASE_MS = 500;
+
+type Ease = { from: number; to: number; start: number };
+const eased = ({ from, to, start }: Ease, now: number) => {
+  const t = Math.min(1, (now - start) / SCALE_EASE_MS);
+  return from + (to - from) * (1 - (1 - t) ** 3);
+};
+
+// The scale the bars are drawn at: `target`, eased to when it changes, with a
+// frame drawn each animation frame until it's there
+function useEasedScale(target: number) {
+  const ease = useRef<Ease>({ from: target, to: target, start: 0 }).current;
+  const [, redraw] = useState(0);
+  const now = performance.now();
+  if (target !== ease.to) Object.assign(ease, { from: eased(ease, now), to: target, start: now });
+  const shown = eased(ease, now);
+  useEffect(() => {
+    if (shown === ease.to) return;
+    const frame = requestAnimationFrame(() => redraw((n) => n + 1));
+    return () => cancelAnimationFrame(frame);
+  });
+  return shown;
+}
 
 // Amps to pixels along a track whose full scale is `max`
 const px = (a: number, max: number) =>
@@ -255,6 +281,8 @@ export function PowerPage() {
   const online = [port, stbd].flatMap((v) => (v.online ? [v] : []));
   const need = online.length ? Math.max(...online.map((v) => (combined ? Math.max(v.outA, v.inA) : v.outA))) : null;
   const max = autoScale.push(performance.now(), need);
+  // The bars ease to a new scale; its labels change at once
+  const shown = useEasedScale(max);
   return (
     <div className="page power">
       <SideHead side="port" v={port} />
@@ -267,8 +295,8 @@ export function PowerPage() {
             <Ticks side="port" max={max} />
             <Ticks side="stbd" max={max} />
           </div>
-          <Track side="port" top={INPUT_Y} segs={inputSegs(port)} max={max} />
-          <Track side="stbd" top={INPUT_Y} segs={inputSegs(stbd)} max={max} />
+          <Track side="port" top={INPUT_Y} segs={inputSegs(port)} max={shown} />
+          <Track side="stbd" top={INPUT_Y} segs={inputSegs(stbd)} max={shown} />
         </>
       ) : (
         <>
@@ -280,8 +308,8 @@ export function PowerPage() {
         INPUT
       </div>
 
-      <Track side="port" top={LOAD_Y} segs={loadSegs(port)} max={max} />
-      <Track side="stbd" top={LOAD_Y} segs={loadSegs(stbd)} max={max} />
+      <Track side="port" top={LOAD_Y} segs={loadSegs(port)} max={shown} />
+      <Track side="stbd" top={LOAD_Y} segs={loadSegs(stbd)} max={shown} />
       <div className="row-label" style={{ top: LOAD_Y }}>
         LOAD
       </div>

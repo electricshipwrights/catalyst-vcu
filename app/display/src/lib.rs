@@ -8,8 +8,7 @@ use std::time::Duration;
 
 use slint::{ComponentHandle, Timer, TimerMode};
 use vcu_core::range::{RangeInput, RangeView, RangeWindow, chart_paths, range_view, step_speed, to_fixed1};
-use vcu_core::sun::Daylight;
-use vcu_core::{AutoScale, Eta, PowerView, Reading, Side, SideName, Smoothing, power_view};
+use vcu_core::{AutoScale, BoatClock, Eta, PowerView, Reading, Side, SideName, Smoothing, power_view};
 
 slint::include_modules!();
 
@@ -18,10 +17,12 @@ pub use {slint, vcu_core};
 pub const WIDTH: u32 = 320;
 pub const HEIGHT: u32 = 240;
 
-/// Port and starboard, each fed the frames that concern it.
+/// Port and starboard, each fed the frames that concern it, and the boat's
+/// clock from NMEA 2000 (any bus).
 pub struct Sides {
     pub port: Side,
     pub stbd: Side,
+    pub clock: BoatClock,
 }
 
 impl Default for Sides {
@@ -29,6 +30,7 @@ impl Default for Sides {
         Self {
             port: Side::new(SideName::Port),
             stbd: Side::new(SideName::Stbd),
+            clock: BoatClock::default(),
         }
     }
 }
@@ -37,6 +39,7 @@ impl Sides {
     /// A frame from gateway bus `bus`, to each side it concerns.
     pub fn ingest(&mut self, bus: u8, id: u32, ext: bool, data: &[u8], at: f64) {
         use vcu_core::gateway::concerns;
+        self.clock.ingest(id, ext, data, at);
         if concerns(SideName::Port, bus) {
             self.port.ingest(id, ext, data, at);
         }
@@ -50,17 +53,13 @@ impl Sides {
 #[derive(Default)]
 pub struct Settings {
     pub smoothing: Cell<Smoothing>,
-    /// The bench's daylight setting (the sun as now, or a season's); always
-    /// now on the device.
-    pub daylight: Cell<Daylight>,
 }
 
-/// Wall-clock time for the range view: ms since the epoch, and the local
-/// time's offset in minutes east of UTC.
+/// The display's own clock, for the range view when no NMEA 2000 time is on
+/// the bus: ms since the epoch, and the local time's offset in minutes east of UTC.
 pub type WallClock = fn() -> (f64, f64);
 
-/// Settings shared with the prototype: `vcu.smoothing`, `vcu.theme`,
-/// `vcu.input` and (bench only) `vcu.daylight`.
+/// Settings shared with the prototype: `vcu.smoothing`, `vcu.theme` and `vcu.input`.
 pub fn parse_smoothing(s: &str) -> Option<Smoothing> {
     match s.trim() {
         "smooth" => Some(Smoothing::Smooth),
@@ -210,6 +209,8 @@ struct RangeState {
     plan_kn: Option<f64>,
     window: RangeWindow,
     inputs: Vec<RangeInput>,
+    /// The boat's NMEA 2000 time less the frames' clock, while it's fresh.
+    clock_offset: Option<f64>,
     /// The speed shown, for the stepper.
     kn: Option<f64>,
 }
@@ -220,8 +221,8 @@ pub struct Driver {
 }
 
 /// Pushes readings to the UI at 10 Hz. `now_ms` is a monotonic clock in
-/// milliseconds, the same one frames are stamped with; `wall` is the time of
-/// day, for the range view.
+/// milliseconds, the same one frames are stamped with; `wall` is the display's
+/// own time of day, for the range view when the boat's isn't on the bus.
 pub fn drive(
     ui: &Display,
     sides: Rc<RefCell<Sides>>,
@@ -231,12 +232,13 @@ pub fn drive(
 ) -> Driver {
     let range = Rc::new(RefCell::new(RangeState::default()));
     let update_range: Rc<dyn Fn()> = {
-        let (weak, range, settings) = (ui.as_weak(), range.clone(), settings.clone());
+        let (weak, range) = (ui.as_weak(), range.clone());
         Rc::new(move || {
             let Some(ui) = weak.upgrade() else { return };
-            let (now, offset_min) = wall();
+            let (system, offset_min) = wall();
             let mut r = range.borrow_mut();
-            let v = range_view(&r.inputs, r.plan_kn, r.window, now, offset_min, settings.daylight.get());
+            let now = r.clock_offset.map_or(system, |o| now_ms() + o);
+            let v = range_view(&r.inputs, r.plan_kn, r.window, now, offset_min);
             r.kn = v.as_ref().map(|v| v.kn);
             ui.set_range(range_data(v.as_ref(), r.window, now));
         })
@@ -300,6 +302,7 @@ pub fn drive(
                 .flatten()
                 .map(range_input)
                 .collect();
+            r.clock_offset = sides.clock.now(now).map(|ms| ms - now);
         }
         update_range();
     });

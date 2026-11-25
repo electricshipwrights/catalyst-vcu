@@ -2,7 +2,7 @@
 // with and without forecast solar, until the first side reaches the reserve.
 // Pure functions of their inputs (no clock), so the Rust port can match.
 
-import { ARRAY_MAX_A, DAY_MS, HOUR_MS, clearSkyA, dayOfYear, sunShift, type Daylight } from '../../shared/sun'
+import { ARRAY_MAX_A, DAY_MS, HOUR_MS, clearSkyA, dayOfYear } from '../../shared/sun'
 import { CAPACITY_AH, RESERVE_PCT, hm } from './power'
 
 // Propulsion power for both motors (kW) by speed (kn): the builder's published
@@ -134,9 +134,8 @@ const HORIZON_MS = 72 * 3_600_000
 // reserve it drops out (its house load with it) and the other motor carries
 // on alone: it takes the boat's whole propulsion power, or its own 15 kW at
 // most, and the speed drops to what that gives. Shore charging is left out:
-// this is for planning time underway. The sun is taken `sunShiftMs` later
-// (whole days), for the bench's daylight setting.
-export function project(sides: RangeSide[], kn: number, sky: number, now: number, end: number, sunShiftMs = 0): Projection {
+// this is for planning time underway.
+export function project(sides: RangeSide[], kn: number, sky: number, now: number, end: number): Projection {
   const propulsion = propulsionAt(kn)
   const start = (solar: boolean): Run => {
     const out = sides.map((s) => s.soc <= RESERVE_PCT)
@@ -148,7 +147,7 @@ export function project(sides: RangeSide[], kn: number, sky: number, now: number
   const hours = STEP_MS / HOUR_MS
 
   for (let at = now; at <= Math.max(end, now + HORIZON_MS); at += STEP_MS) {
-    const arrayA = clearSkyA(at + sunShiftMs) * sky
+    const arrayA = clearSkyA(at) * sky
     if (at <= end) points.push({ at, withSolar: usable(withSolar), batteryOnly: usable(batteryOnly), solarA: arrayA })
     if (runs.every((r) => r.emptyAt != null) && at > end) break
     for (const r of runs) {
@@ -290,7 +289,7 @@ const FULL_PCT = 99.5
 // At the dock, which means not moving: each side gains its charger and the
 // solar forecast less its house load, until every charging side is full. The
 // Orion's taper near full is left out, like the power view's time to full.
-function dock(sides: RangeInput[], kn: number, sky: number, now: number, sunShiftMs: number, offsetMin: number) {
+function dock(sides: RangeInput[], kn: number, sky: number, now: number, offsetMin: number) {
   const charging = sides.map((s) => s.shore && s.chargerA >= CHARGING_A)
   if (!charging.some(Boolean)) return null
   const socs = sides.map((s) => s.soc)
@@ -301,7 +300,7 @@ function dock(sides: RangeInput[], kn: number, sky: number, now: number, sunShif
       fullAt = at
       break
     }
-    const arrayA = clearSkyA(at + sunShiftMs) * sky
+    const arrayA = clearSkyA(at) * sky
     sides.forEach((s, i) => {
       const inA = (charging[i] ? s.chargerA : 0) + (arrayA * s.mppts) / 4
       socs[i] = Math.min(100, Math.max(0, socs[i] + ((inA - s.houseA) * (STEP_MS / HOUR_MS) * 100) / CAPACITY_AH))
@@ -309,21 +308,14 @@ function dock(sides: RangeInput[], kn: number, sky: number, now: number, sunShif
   }
   if (fullAt == null) return { full: whenText(null, now, offsetMin), nm: null }
   const leaving = sides.map((s, i) => ({ soc: socs[i], houseA: s.houseA, mppts: s.mppts }))
-  const nm = project(leaving, kn, sky, fullAt, fullAt + HORIZON_MS, sunShiftMs).rangeNm
+  const nm = project(leaving, kn, sky, fullAt, fullAt + HORIZON_MS).rangeNm
   return { full: whenText(fullAt, now, offsetMin), nm }
 }
 
 // The view for the online sides (null with none). planKn: a speed picked on
-// the view, or null to follow the boat. daylight: the bench's setting, which
-// moves the sim's sun the same way, so the sky is still measured from the MPPTs.
-export function rangeView(
-  sides: RangeInput[],
-  planKn: number | null,
-  w: RangeWindow,
-  now: number,
-  offsetMin: number,
-  daylight: Daylight = 'now',
-): RangeView | null {
+// the view, or null to follow the boat. now: the boat's clock, which the
+// bench's sim moves for its time of day and season (boatClock.ts).
+export function rangeView(sides: RangeInput[], planKn: number | null, w: RangeWindow, now: number, offsetMin: number): RangeView | null {
   if (!sides.length) return null
   const propulsionA = sides.reduce((sum, s) => sum + s.propulsionA, 0) / sides.length
   const kn = planKn ?? speedFor(propulsionA)
@@ -331,8 +323,7 @@ export function rangeView(
   // The whole array's current, from the MPPTs on the online sides
   const mppts = sides.reduce((sum, s) => sum + s.mppts, 0)
   const solarA = sides.reduce((sum, s) => sum + s.solarA, 0)
-  const shift = sunShift(now, daylight, offsetMin)
-  const sky = mppts > 0 ? skyFactor(now + shift, (solarA * 4) / mppts) : typicalSky(now + shift)
+  const sky = mppts > 0 ? skyFactor(now, (solarA * 4) / mppts) : typicalSky(now)
   const end = windowEnd(now, w, offsetMin)
   const projection = project(
     sides.map((s) => ({ soc: s.soc, houseA: s.houseA, mppts: s.mppts })),
@@ -340,7 +331,6 @@ export function rangeView(
     sky,
     now,
     end,
-    shift,
   )
   return {
     kn,
@@ -354,7 +344,7 @@ export function rangeView(
     noSunAt: atText(projection.emptyBatteryOnlyAt, now, offsetMin),
     ticks: timeTicks(now, end, offsetMin),
     midnights: midnights(now, end, offsetMin),
-    dock: dock(sides, kn, sky, now, shift, offsetMin),
+    dock: dock(sides, kn, sky, now, offsetMin),
   }
 }
 

@@ -169,7 +169,10 @@ setInterval(() => {
   }
 }, 20)
 
-setInterval(() => gateway.allocation(allocationOf(sims)), 1000)
+setInterval(() => {
+  gateway.allocation(allocationOf(sims))
+  gateway.time(sims.port.clock())
+}, 1000)
 
 setInterval(() => broadcast(statusMsg()), 250)
 

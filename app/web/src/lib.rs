@@ -3,15 +3,16 @@
 //! 320×240 canvas, so the page shows the LCD's exact pixels. The page hands
 //! it the gateway stream (`push_packet`): each bus's cannelloni packets, as
 //! the router sends over UDP, from the bus server or the page's own sims
-//! (ui/src/bus.ts). It follows the bench's `vcu.theme`, `vcu.input`,
-//! `vcu.smoothing` and `vcu.daylight` settings in localStorage, and its clock
-//! follows `vcu.timeOfDay`.
+//! (ui/src/bus.ts). It follows the bench's `vcu.theme`, `vcu.input` and
+//! `vcu.smoothing` settings in localStorage. Its clock is NMEA 2000 time from
+//! the stream when there is one, which the bench's sim sends with its time of
+//! day and season.
 //!
 //! Built by `pnpm build:wasm` in ui/; see ui/src/slint/SlintDisplay.tsx.
 
 #![cfg(target_arch = "wasm32")]
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -21,7 +22,6 @@ use vcu_display::slint::platform::software_renderer::{
 use vcu_display::slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
 use vcu_display::slint::{self, ComponentHandle, LogicalPosition, PhysicalSize, Timer, TimerMode};
 use vcu_display::vcu_core::gateway::decode_cannelloni;
-use vcu_display::vcu_core::sun::Daylight;
 use vcu_display::{
     Display, HEIGHT, Palette, Prefs, Settings, Sides, WIDTH, drive, input_name, parse_input,
     parse_smoothing, parse_theme, theme_name,
@@ -38,13 +38,10 @@ fn now_ms() -> f64 {
     window().performance().expect("no performance").now()
 }
 
-/// The time of day for the range view, moved by the bench's time of day.
+/// The browser's time of day, for the range view when the stream has none.
 fn wall() -> (f64, f64) {
     let date = js_sys::Date::new_0();
-    (
-        date.get_time() + CLOCK_SHIFT.with(Cell::get),
-        -date.get_timezone_offset(),
-    )
+    (date.get_time(), -date.get_timezone_offset())
 }
 
 /// Follows the bench's settings, which it writes to localStorage.
@@ -78,21 +75,7 @@ fn watch_settings(ui: &Display, settings: Rc<Settings>) -> Timer {
         {
             settings.smoothing.set(s);
         }
-        if let Some(d) = storage
-            .get_item("vcu.daylight")
-            .ok()
-            .flatten()
-            .and_then(|v| Daylight::parse(&v))
-        {
-            settings.daylight.set(d);
-        }
-        // The bench saves the shift its time of day set, beside it
-        let item = |key| storage.get_item(key).ok().flatten();
-        let shift = match item("vcu.timeOfDay").as_deref() {
-            None | Some("now") => 0.0,
-            Some(_) => item("vcu.clockShift").and_then(|v| v.parse().ok()).unwrap_or(0.0),
-        };
-        CLOCK_SHIFT.with(|c| c.set(shift));
+
     };
     apply();
     let timer = Timer::default();
@@ -118,8 +101,6 @@ fn save_setting(key: &str, value: &str) {
 thread_local! {
     static UI: RefCell<Option<slint::Weak<Display>>> = const { RefCell::new(None) };
     static SIDES: Rc<RefCell<Sides>> = Rc::default();
-    /// Milliseconds added to the clock: the bench's time of day.
-    static CLOCK_SHIFT: Cell<f64> = const { Cell::new(0.0) };
 }
 
 /// A cannelloni packet from gateway bus `bus`, from the page.

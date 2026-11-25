@@ -4,7 +4,7 @@
 import type { BusName } from '../shared/bus'
 import { fromHex, type WireFrame } from '../shared/can'
 import { GATEWAY_BUSES, MPPT_ALLOCATION, encodeAllocation, encodeCannelloni, type Bank, type GatewayFrame } from '../shared/gateway'
-import { ELCON_COMMAND, ELCON_STATUS, MOTOR_STATUS } from '../shared/protocol'
+import { ELCON_COMMAND, ELCON_STATUS, MOTOR_STATUS, PGN_SYSTEM_TIME, TIME_SOURCE, encodeSystemTime, n2kId } from '../shared/protocol'
 
 function busFor(side: BusName, f: WireFrame) {
   if (f.ext && (f.id === ELCON_STATUS || f.id === ELCON_COMMAND)) return GATEWAY_BUSES.charger[side]
@@ -16,6 +16,7 @@ function busFor(side: BusName, f: WireFrame) {
 export class Gateway {
   private pending: GatewayFrame[] = []
   private seq = new Map<number, number>() // per bus, like the router
+  private sid = 0
 
   push(side: BusName, f: WireFrame) {
     this.pending.push({ bus: busFor(side, f), id: f.id, ext: f.ext, data: fromHex(f.data) })
@@ -23,6 +24,12 @@ export class Gateway {
 
   allocation(sides: Bank[]) {
     this.pending.push({ bus: GATEWAY_BUSES.self, id: MPPT_ALLOCATION, ext: false, data: encodeAllocation(sides) })
+  }
+
+  // The sims' clock on NMEA 2000, as a GPS would send it
+  time(ms: number) {
+    const data = encodeSystemTime({ sid: this.sid++ % 253, ms })
+    this.pending.push({ bus: GATEWAY_BUSES.nmea, id: n2kId(PGN_SYSTEM_TIME, TIME_SOURCE), ext: true, data })
   }
 
   // The packets for everything since the last call, per bus

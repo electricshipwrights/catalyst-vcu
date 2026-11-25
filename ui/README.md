@@ -53,6 +53,7 @@ netlify deploy --dir=dist            # a draft URL; add --prod to publish
 | Elcon charger | CAN3, CAN2 (assumed) | `0x18FF50E5` @ 1 Hz | charging voltage, current and status flags; silent without shore power |
 | Victron MPPT 1–4 | CAN6 | `0x19F21422`–`25` @ 1 Hz | NMEA 2000 PGN 127508 Battery Status (LE) from sources 0x22–0x25: charge current into the battery = **solar in** |
 | Inverter, heater | CAN6 (assumed) | `0x19F21430`–`33` @ 1 Hz | **placeholder**: PGN 127508 from 0x30/0x31 (inverter, port/stbd) and 0x32/0x33 (heater), current = what each draws |
+| GPS (stand-in) | CAN6 | `0x19F01010` @ 1 Hz | NMEA 2000 PGN 126992 System Time from source 0x10: UTC days since 1970 and time of day (0.0001 s). The sim sends its clock (with the bench's season and time of day); the display's clock follows it while it's on the bus |
 | Motor controller | CAN4, CAN5 | `0x700` @ 20 Hz | **placeholder**: DC current (0.1 A, signed BE) = propulsion. Swap in the real controller's frame |
 | Bench | bench (255) | `0x7F0` @ 1 Hz | stand-in MPPT allocation: one byte per MPPT (0 none, 1 port, 2 starboard) |
 

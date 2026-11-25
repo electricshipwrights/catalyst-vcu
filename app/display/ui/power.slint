@@ -49,7 +49,7 @@ global Scale {
     }
 
     // Amps to pixels along a track whose full scale is `full`
-    public pure function px(amps: int, full: int) -> length {
+    public pure function px(amps: int, full: float) -> length {
         return max(0, min(amps, full)) / full * self.track-w;
     }
 
@@ -67,7 +67,7 @@ component Track {
     in property <[int]> parts;
     in property <[color]> colors;
     // Amps at the far end of the track
-    in property <int> full-scale;
+    in property <float> full-scale;
     width: Scale.track-w;
     height: 12px;
 
@@ -343,6 +343,14 @@ export component PowerPage {
     in property <SideView> stbd;
     // The load bar's full scale (vcu_core::AutoScale)
     in property <int> scale-max: 100;
+    // The scale the bars are drawn at: eased to a new one, so they grow or
+    // shrink smoothly instead of jumping; the labels change at once
+    property <float> shown-scale: root.scale-max;
+    animate shown-scale {
+        duration: 500ms;
+        // Ease-out cubic, like the prototype
+        easing: cubic-bezier(0.33, 1, 0.68, 1);
+    }
     property <bool> combined: Prefs.input == 1;
     width: 320px;
     height: 240px;
@@ -413,7 +421,7 @@ export component PowerPage {
         port: true;
         parts: root.port.online ? [max(0, root.port.charger-a), root.port.solar-a] : [];
         colors: [Palette.shore, Palette.solar];
-        full-scale: root.scale-max;
+        full-scale: root.shown-scale;
     }
 
     if root.combined: Track {
@@ -421,7 +429,7 @@ export component PowerPage {
         y: Scale.input-y;
         parts: root.stbd.online ? [max(0, root.stbd.charger-a), root.stbd.solar-a] : [];
         colors: [Palette.shore, Palette.solar];
-        full-scale: root.scale-max;
+        full-scale: root.shown-scale;
     }
 
     for end[i] in [root.scale-max, 0, 0, root.scale-max]: Label {
@@ -439,7 +447,7 @@ export component PowerPage {
         port: true;
         parts: root.port.online ? [root.port.base-a, root.port.heater-a, root.port.inverter-a, root.port.propulsion-a] : [];
         colors: [Palette.base, Palette.heater, Palette.inverter, Palette.load];
-        full-scale: root.scale-max;
+        full-scale: root.shown-scale;
     }
 
     Track {
@@ -447,7 +455,7 @@ export component PowerPage {
         y: Scale.load-y;
         parts: root.stbd.online ? [root.stbd.base-a, root.stbd.heater-a, root.stbd.inverter-a, root.stbd.propulsion-a] : [];
         colors: [Palette.base, Palette.heater, Palette.inverter, Palette.load];
-        full-scale: root.scale-max;
+        full-scale: root.shown-scale;
     }
 
     // Row labels, centered between the tracks

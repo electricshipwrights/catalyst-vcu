@@ -23,7 +23,7 @@ pnpm dev            # bench; React is the default renderer (toggle "renderer" fo
 
 - After changing `.slint` or Rust files, run `pnpm build:wasm` again. Vite reloads the page.
 - `?display` shows the screen alone, using whichever renderer is selected.
-- The bench's theme, currents (smoothing) and daylight toggles apply to both renderers, and its A/B/C buttons switch views in both.
+- The bench's theme and currents (smoothing) toggles apply to both renderers, and its A/B/C buttons switch views in both. Its season and time of day reach both through the sim's NMEA 2000 System Time.
 
 ## Device
 
@@ -56,7 +56,7 @@ To see live data without batteries, simulate the CAN buses:
 ../tools/cansim.py stop           # stop the replay, buses back to normal
 ```
 
-- **demo** (the default) steps through the bench's presets and then night (no sun), 30 s each with 3 s ramps between: cruise, full throttle, moored, shore power, night. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Each side's solar comes from its own two MPPTs. Both sides are always online. It's generated in `cansim.py` itself.
+- **demo** (the default) steps through the bench's presets and then night (no sun), 30 s each with 3 s ramps between: cruise, full throttle, moored, shore power, night. Each step has its own season and time of day (midsummer 15:00, midsummer 11:00, the equinox at 13:00, midwinter 17:00, midsummer 23:00, Pacific time), sent as NMEA 2000 System Time on `can0`, so the range view's clock, chart and sun move with it. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Each side's solar comes from its own two MPPTs. Both sides are always online. It's generated in `cansim.py` itself.
 - **parity** replays the test scenario (`core/tests/fixtures/parity.json`, 220 s), with starboard 20 s behind, its frames mirrored onto starboard's MPPT, heater and inverter addresses. It goes offline and quiet on purpose, to exercise the edge cases: a BMS dropout, devices going stale, near-zero currents. It ends with full throttle from 180 s. To change it, edit `ui/scripts/parity.ts` and run `pnpm parity` in `ui/`.
 
 Either one puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.
@@ -69,7 +69,7 @@ On any host, `cargo run -p vcu-display -- --screenshot out` renders `out-{dark,l
 cargo test -p vcu-core
 ```
 
-`core/tests/parity.rs` replays a 220-second scenario generated from the prototype's TypeScript (`pnpm parity` in `ui/`). It checks every 10 Hz reading and power view against the TypeScript output. `core/tests/range.rs` does the same for the range view: 30 cases (times, offsets, windows, speeds, daylight, one side out, at the dock) from `core/tests/fixtures/range.json`, down to the chart's path commands. If you change the display logic in the prototype, run `pnpm parity` again and port the change.
+`core/tests/parity.rs` replays a 220-second scenario generated from the prototype's TypeScript (`pnpm parity` in `ui/`). It checks every 10 Hz reading and power view against the TypeScript output. `core/tests/range.rs` does the same for the range view: 30 cases (times, offsets, windows, speeds, one side out, at the dock) from `core/tests/fixtures/range.json`, down to the chart's path commands. If you change the display logic in the prototype, run `pnpm parity` again and port the change.
 
 ## Gotchas
 

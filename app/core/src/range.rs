@@ -6,7 +6,7 @@
 
 use crate::js_round;
 use crate::power::{CAPACITY_AH, RESERVE_PCT, hm};
-use crate::sun::{ARRAY_MAX_A, DAY_MS, Daylight, HOUR_MS, clear_sky_a, day_of_year, sun_shift};
+use crate::sun::{ARRAY_MAX_A, DAY_MS, HOUR_MS, clear_sky_a, day_of_year};
 
 /// Propulsion power for both motors (kW) by speed (kn): the builder's
 /// published estimate (README, Range and speed). Beyond either end it carries
@@ -189,16 +189,8 @@ const HORIZON_MS: f64 = 72.0 * 3_600_000.0;
 /// reserve it drops out (its house load with it) and the other motor carries
 /// on alone: it takes the boat's whole propulsion power, or its own 15 kW at
 /// most, and the speed drops to what that gives. Shore charging is left out:
-/// this is for planning time underway. The sun is taken `sun_shift_ms` later
-/// (whole days), for the bench's daylight setting.
-pub fn project(
-    sides: &[RangeSide],
-    kn: f64,
-    sky: f64,
-    now: f64,
-    end: f64,
-    sun_shift_ms: f64,
-) -> Projection {
+/// this is for planning time underway.
+pub fn project(sides: &[RangeSide], kn: f64, sky: f64, now: f64, end: f64) -> Projection {
     let propulsion = propulsion_at(kn);
     let start = |solar: bool| {
         let out: Vec<bool> = sides.iter().map(|s| s.soc <= RESERVE_PCT).collect();
@@ -217,7 +209,7 @@ pub fn project(
 
     let mut at = now;
     while at <= end.max(now + HORIZON_MS) {
-        let array_a = clear_sky_a(at + sun_shift_ms) * sky;
+        let array_a = clear_sky_a(at) * sky;
         if at <= end {
             points.push(RangePoint {
                 at,
@@ -458,14 +450,7 @@ const FULL_PCT: f64 = 99.5;
 /// At the dock, which means not moving: each side gains its charger and the
 /// solar forecast less its house load, until every charging side is full. The
 /// Orion's taper near full is left out, like the power view's time to full.
-fn dock(
-    sides: &[RangeInput],
-    kn: f64,
-    sky: f64,
-    now: f64,
-    sun_shift_ms: f64,
-    offset_min: f64,
-) -> Option<Dock> {
+fn dock(sides: &[RangeInput], kn: f64, sky: f64, now: f64, offset_min: f64) -> Option<Dock> {
     let charging: Vec<bool> = sides
         .iter()
         .map(|s| s.shore && s.charger_a >= CHARGING_A)
@@ -485,7 +470,7 @@ fn dock(
             full_at = Some(at);
             break;
         }
-        let array_a = clear_sky_a(at + sun_shift_ms) * sky;
+        let array_a = clear_sky_a(at) * sky;
         for (i, s) in sides.iter().enumerate() {
             let in_a = (if charging[i] { s.charger_a } else { 0.0 }) + (array_a * s.mppts) / 4.0;
             socs[i] = (socs[i]
@@ -509,7 +494,7 @@ fn dock(
             mppts: s.mppts,
         })
         .collect();
-    let nm = project(&leaving, kn, sky, full_at, full_at + HORIZON_MS, sun_shift_ms).range_nm;
+    let nm = project(&leaving, kn, sky, full_at, full_at + HORIZON_MS).range_nm;
     Some(Dock {
         full: when_text(Some(full_at), now, offset_min),
         nm: Some(nm),
@@ -517,16 +502,14 @@ fn dock(
 }
 
 /// The view for the online sides (`None` with none). `plan_kn`: a speed picked
-/// on the view, or `None` to follow the boat. `daylight`: the bench's setting,
-/// which moves the sim's sun the same way, so the sky is still measured from
-/// the MPPTs.
+/// on the view, or `None` to follow the boat. `now`: the boat's clock
+/// (`BoatClock`), which the bench's sim moves for its time of day and season.
 pub fn range_view(
     sides: &[RangeInput],
     plan_kn: Option<f64>,
     w: RangeWindow,
     now: f64,
     offset_min: f64,
-    daylight: Daylight,
 ) -> Option<RangeView> {
     if sides.is_empty() {
         return None;
@@ -541,11 +524,10 @@ pub fn range_view(
     // The whole array's current, from the MPPTs on the online sides
     let mppts = sides.iter().fold(0.0, |sum, s| sum + s.mppts);
     let solar_a = sides.iter().fold(0.0, |sum, s| sum + s.solar_a);
-    let shift = sun_shift(now, daylight, offset_min);
     let sky = if mppts > 0.0 {
-        sky_factor(now + shift, (solar_a * 4.0) / mppts)
+        sky_factor(now, (solar_a * 4.0) / mppts)
     } else {
-        typical_sky(now + shift)
+        typical_sky(now)
     };
     let end = window_end(now, w, offset_min);
     let range_sides: Vec<RangeSide> = sides
@@ -556,7 +538,7 @@ pub fn range_view(
             mppts: s.mppts,
         })
         .collect();
-    let projection = project(&range_sides, kn, sky, now, end, shift);
+    let projection = project(&range_sides, kn, sky, now, end);
     Some(RangeView {
         kn,
         basis,
@@ -568,7 +550,7 @@ pub fn range_view(
         no_sun_at: at_text(projection.empty_battery_only_at, now, offset_min),
         ticks: time_ticks(now, end, offset_min),
         midnights: midnights(now, end, offset_min),
-        dock: dock(sides, kn, sky, now, shift, offset_min),
+        dock: dock(sides, kn, sky, now, offset_min),
         projection,
     })
 }

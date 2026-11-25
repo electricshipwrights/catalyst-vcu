@@ -12,7 +12,7 @@ import {
   type RangeWindow,
   type SpeedBasis,
 } from "./range";
-import { useClockShift, useDaylight } from "./settings";
+import { boatNow } from "./boatClock";
 import { useSide, type SideReading } from "./useSide";
 
 // The time axis sits just under the chart, its labels on the power view's
@@ -66,10 +66,10 @@ export function RangePage() {
   // A speed picked here; null follows the boat
   const [planKn, setPlanKn] = useState<number | null>(null);
   const [win, setWin] = useState<RangeWindow>("today");
-  const daylight = useDaylight();
-  // The bench's time of day moves the clock
-  const now = Date.now() + useClockShift();
-  const v = rangeView([...rangeInput(port), ...rangeInput(stbd)], planKn, win, now, localOffsetMin(now), daylight);
+  // The boat's NMEA 2000 time when there is one (the bench's sim sends its
+  // time of day and season that way), or the browser's
+  const now = boatNow();
+  const v = rangeView([...rangeInput(port), ...rangeInput(stbd)], planKn, win, now, localOffsetMin(now));
 
   if (!v) {
     return (

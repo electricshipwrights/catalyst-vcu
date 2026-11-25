@@ -31,6 +31,7 @@ export class LocalBus {
     })
     every(1000, () => {
       this.gateway.allocation(allocationOf(this.sims))
+      this.gateway.time(this.sims.port.clock())
       this.fps = { ...this.counts }
       this.counts = { port: 0, stbd: 0 }
       this.gatewayFps = Object.fromEntries(this.gatewayCounts)

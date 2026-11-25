@@ -7,14 +7,17 @@ usage: cansim.py start [demo|parity] | stop | status
 
   demo    (default) steps through the bench's presets, then night (no sun),
           30 s each with short ramps between: cruise, full throttle, moored,
-          shore power, night. Loops every 2.5 min; starboard runs two steps
-          out of phase.
+          shore power, night. Each step has its own season and time of day,
+          sent as NMEA 2000 System Time, so the range view moves with it.
+          Loops every 2.5 min; starboard runs two steps out of phase (the
+          clock follows port's step).
           Both sides are always online.
   parity  the test scenario (app/core/tests/fixtures/parity.json), which goes
           offline and quiet on purpose to exercise edge cases. Starboard runs
           20 s behind.
 """
 
+import datetime
 import json
 import math
 import pathlib
@@ -30,6 +33,9 @@ BITRATE = 250000
 # Frame formats, as in ui/shared/protocol.ts
 ORION_PACK, ORION_LIMITS, MOTOR_STATUS, ELCON_STATUS = 0x6B0, 0x6B1, 0x700, 0x18FF50E5
 PGN_BATTERY_STATUS = 127508
+# System Time from a stand-in GPS: the display's clock while it's on the bus
+PGN_SYSTEM_TIME, TIME_SOURCE = 126992, 0x10
+DAY_MS = 86_400_000
 # MPPT 1–2 feed port and 3–4 starboard (the display's default allocation)
 MPPT_SOURCES = {"can0": (0x22, 0x23), "can1": (0x24, 0x25)}
 MPPT_ALLOCATION = 0x7F0
@@ -70,16 +76,38 @@ def elcon_status(amps, volts):
     return struct.pack(">HHB", clamp_int(volts * 10, 0, 0xFFFF), clamp_int(amps * 10, 0, 0xFFFF), 0) + bytes(3)
 
 
-def n2k_id(source):
-    return (6 << 26) | (PGN_BATTERY_STATUS << 8) | source
+def system_time(ms, sid):
+    """Days since 1970, then the time of day in 0.0001 s (source 0: GPS)."""
+    days = ms // DAY_MS
+    return struct.pack("<BBHI", sid & 0xFF, 0xF0, days, round((ms - days * DAY_MS) * 10))
+
+
+def n2k_id(source, pgn=PGN_BATTERY_STATUS):
+    return (6 << 26) | (pgn << 8) | source
 
 # Demo: (solar, propulsion, house, charger) per step: the bench's presets, then night
 STEPS = [
     (55, 78, 10, 0),    # cruise: 7 knots, about 78 A propulsion per side
     (55, 320, 10, 0),   # full throttle
-    (60, 0, 10, 0),     # moored
+    (45, 0, 10, 0),     # moored
     (0, 0, 10, 70),     # shore power (the charger tops out at 80 A)
     (0, 0, 10, 0),      # night
+]
+
+
+
+def utc_ms(*when):
+    return int(datetime.datetime(*when, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+
+
+# Each step's season and local time (Pacific) as it starts, as UTC; the clock
+# runs on through the step
+STEP_CLOCK = [
+    utc_ms(2026, 6, 21, 22),  # cruise: midsummer, 15:00 PDT
+    utc_ms(2026, 6, 21, 18),  # full throttle: midsummer, 11:00 PDT
+    utc_ms(2026, 3, 20, 20),  # moored: equinox, 13:00 PDT
+    utc_ms(2026, 12, 22, 1),  # shore power: midwinter, 17:00 PST (after sunset)
+    utc_ms(2026, 6, 22, 6),  # night: midsummer, 23:00 PDT
 ]
 STEP_S, RAMP_S = 30, 3
 LOOP_S = STEP_S * len(STEPS)
@@ -111,6 +139,9 @@ def demo():
                     frames.append((n2k_id(source), True, battery_status(solar / 2, tick // 10)))
                 if STEPS[step][3]:  # charger only reports on shore power
                     frames.append((ELCON_STATUS, True, elcon_status(charger, 54.2)))
+                if iface == "can0":  # one clock for the boat, from port's step
+                    ms = STEP_CLOCK[step] + int((t % STEP_S) * 1000)
+                    frames.append((n2k_id(TIME_SOURCE, PGN_SYSTEM_TIME), True, system_time(ms, tick // 10)))
             for n, (can_id, ext, data) in enumerate(frames):
                 ts = t + n * 0.002
                 hex_id = f"{can_id:08X}" if ext else f"{can_id:03X}"

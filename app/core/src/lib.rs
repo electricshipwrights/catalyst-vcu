@@ -5,6 +5,7 @@
 //! `tests/range.rs` the range view case by case.
 
 pub mod autoscale;
+pub mod clock;
 pub mod filters;
 pub mod gateway;
 pub mod power;
@@ -14,6 +15,7 @@ pub mod side;
 pub mod sun;
 
 pub use autoscale::AutoScale;
+pub use clock::BoatClock;
 pub use gateway::SideName;
 pub use power::{Eta, PowerView, Smoothing, power_view};
 pub use side::{Currents, Live, Reading, Side};

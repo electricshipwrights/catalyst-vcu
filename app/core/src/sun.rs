@@ -1,5 +1,7 @@
 //! Port of ui/shared/sun.ts: how much the canopy's array could give under a
-//! clear sky at a time, for the range view's solar forecast.
+//! clear sky at a time, for the range view's solar forecast. (The bench's
+//! season and time of day move the sim's clock, which the display gets as
+//! NMEA 2000 time, so they aren't ported.)
 
 use std::f64::consts::PI;
 
@@ -62,43 +64,6 @@ pub fn day_of_year(ms: f64) -> f64 {
 /// The whole array's current under a clear sky.
 pub fn clear_sky_a(ms: f64) -> f64 {
     ARRAY_MAX_A.min((ARRAY_MAX_A * sun_height(ms).max(0.0)) / FULL_SUN_SIN)
-}
-
-/// The bench's daylight setting: the sun as today's, or as on a season's
-/// solstice or equinox. Spring and fall are one: the equinoxes give the same daylight.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Daylight {
-    #[default]
-    Now,
-    Summer,
-    SpringFall,
-    Winter,
-}
-
-impl Daylight {
-    pub fn parse(s: &str) -> Option<Self> {
-        match s.trim() {
-            "now" => Some(Self::Now),
-            "summer" => Some(Self::Summer),
-            "spring/fall" => Some(Self::SpringFall),
-            "winter" => Some(Self::Winter),
-            _ => None,
-        }
-    }
-}
-
-/// How far to move the sun model's clock: whole days, from today to the
-/// season's date this year (`offset_min`: local time, minutes east of UTC).
-pub fn sun_shift(now: f64, daylight: Daylight, offset_min: f64) -> f64 {
-    let (month0, day) = match daylight {
-        Daylight::Now => return 0.0,
-        Daylight::Summer => (5, 21),
-        Daylight::SpringFall => (2, 20),
-        Daylight::Winter => (11, 21),
-    };
-    let local = now + offset_min * 60_000.0;
-    let target = utc_ms(year_of(local), month0, day) / DAY_MS;
-    (target - (local / DAY_MS).floor()) * DAY_MS
 }
 
 #[cfg(test)]
