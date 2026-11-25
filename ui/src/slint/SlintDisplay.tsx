@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { onGatewayPackets } from '../bus'
 import { onButton } from '../display/buttons'
 import './slint.css'
 
 // The Slint display (app/web) compiled to WebAssembly by `pnpm build:wasm`.
-// It renders exactly what the device's LCD shows, reads frames from /bus,
-// and follows the vcu.* settings itself.
+// It renders exactly what the device's LCD shows, from the gateway packets
+// bus.ts hands it, and follows the vcu.* settings itself.
 type Wasm = {
   default: () => Promise<unknown>
   start: (canvas: HTMLCanvasElement) => void
   // Missing from builds older than the A/B/C buttons
   press_button?: (index: number) => void
+  // Missing from builds that read /bus themselves
+  push_packet?: (bus: number, packet: Uint8Array) => void
 }
 const load: (() => Promise<Wasm>) | undefined = import.meta.glob<Wasm>('./pkg/vcu_web.js')['./pkg/vcu_web.js']
 
@@ -28,6 +31,7 @@ export function SlintDisplay() {
         await m.default()
         m.start(target)
         onButton((i) => m.press_button?.(i))
+        onGatewayPackets((bus, packet) => m.push_packet?.(bus, packet))
       })
       .catch((e) => setError(String(e)))
   }, [])

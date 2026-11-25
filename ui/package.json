@@ -7,6 +7,7 @@
     "dev": "concurrently -k -n bus,web -c blue,magenta \"pnpm bus\" \"vite\"",
     "bus": "tsx watch server/index.ts",
     "build": "tsc && vite build",
+    "build:static": "tsc && VITE_BUS=local vite build --base=./",
     "typecheck": "tsc",
     "preview": "vite preview",
     "parity": "tsx scripts/parity.ts",

@@ -9,8 +9,9 @@ import { Traffic } from './Traffic'
 export function GatewayPanel({ status }: { status?: GatewayStatus }) {
   const [shown, setShown] = useState<number>(GATEWAY_BUSES.bms.port)
   const source = status?.source ?? 'sim'
-  const note =
-    source === 'router'
+  const note = status?.local
+    ? 'Simulated in this page; the router needs the bus server (pnpm dev)'
+    : source === 'router'
       ? status?.router
         ? `Router at ${status.router}`
         : 'Listening for the router on UDP 20001–20006…'
@@ -37,7 +38,7 @@ export function GatewayPanel({ status }: { status?: GatewayStatus }) {
       </ul>
       <div className="seg-control">
         {(['sim', 'router'] as const).map((k) => (
-          <button key={k} aria-pressed={source === k} disabled={!status} onClick={() => send({ type: 'gateway', source: k })}>
+          <button key={k} aria-pressed={source === k} disabled={!status || (status.local && k === 'router')} onClick={() => send({ type: 'gateway', source: k })}>
             {k === 'sim' ? 'simulated' : 'router'}
           </button>
         ))}

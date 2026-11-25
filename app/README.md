@@ -8,7 +8,7 @@ display/   vcu-display: the Slint UI (ui/*.slint) plus the device binary
   src/lib.rs        shared glue: 10 Hz readings → UI
   src/main.rs       device entry point; `--screenshot` on any host
   src/device/       CoreMP135: framebuffer, touch, SocketCAN, settings file
-web/       vcu-web: WASM entry point: renders onto a canvas, fed the gateway stream from the bench's /bus WebSocket
+web/       vcu-web: WASM entry point: renders onto a canvas, fed the gateway stream by the bench page (`push_packet`)
 ```
 
 ## Web (day-to-day development)

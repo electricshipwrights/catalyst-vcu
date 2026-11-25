@@ -31,6 +31,15 @@ Open the URL Vite prints. Add `?display` to get the screen alone at 1×, which i
 
 The bench can show either this React display or the Slint port in `../app`, which is what runs on the device. The Slint view shows the LCD's exact pixels. It shows Slint by default; switch with **renderer** in the toolbar. To build the Slint version, run `pnpm build:wasm` (setup is in `../app/README.md`). `pnpm parity` regenerates the fixtures that keep the Rust logic in step with `src/display` (the power view's readings and the range view's cases).
 
+## Static hosting
+
+`pnpm build:static` builds the bench for a static host (Netlify, GitHub Pages) into `dist/`, with relative paths so it works under a subpath. With no bus server, the page runs both sims and the gateway stand-in itself (`src/localBus.ts`, sharing `server/simBench.ts` with the server), so each visitor gets their own boat. Replay, candump and the real router need `pnpm dev`. Run `pnpm build:wasm` first so the Slint renderer is included; a host's build image would need Rust and wasm-bindgen to build it there.
+
+```
+pnpm build:wasm && pnpm build:static
+netlify deploy --dir=dist            # a draft URL; add --prod to publish
+```
+
 ## Messages
 
 | Device | Bus | ID | Content |

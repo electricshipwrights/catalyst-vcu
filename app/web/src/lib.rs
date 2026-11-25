@@ -1,9 +1,9 @@
 //! The VCU display in the browser. It runs the device's pipeline (Slint's
 //! software renderer into an RGB565 buffer) and copies each frame onto a
-//! 320×240 canvas, so the page shows the LCD's exact pixels. It reads the
-//! gateway stream from the bench's `/bus` WebSocket (ui/server): binary
-//! messages of a bus number then a cannelloni packet, as the router sends over
-//! UDP. It follows the bench's `vcu.theme`, `vcu.input`, `vcu.smoothing` and
+//! 320×240 canvas, so the page shows the LCD's exact pixels. The page hands
+//! it the gateway stream (`push_packet`): each bus's cannelloni packets, as
+//! the router sends over UDP, from the bus server or the page's own sims
+//! (ui/src/bus.ts). It follows the bench's `vcu.theme`, `vcu.input`, `vcu.smoothing` and
 //! `vcu.daylight` settings in localStorage.
 //!
 //! Built by `pnpm build:wasm` in ui/; see ui/src/slint/SlintDisplay.tsx.
@@ -41,47 +41,6 @@ fn now_ms() -> f64 {
 fn wall() -> (f64, f64) {
     let date = js_sys::Date::new_0();
     (date.get_time(), -date.get_timezone_offset())
-}
-
-/// Opens the bus WebSocket and reconnects a second after it closes.
-fn connect(sides: Rc<RefCell<Sides>>) {
-    let location = window().location();
-    let scheme = if location.protocol().as_deref() == Ok("https:") {
-        "wss"
-    } else {
-        "ws"
-    };
-    let url = format!("{scheme}://{}/bus", location.host().unwrap_or_default());
-    let retry = sides.clone();
-    let reconnect = move || {
-        let sides = retry.clone();
-        Timer::single_shot(Duration::from_secs(1), move || connect(sides));
-    };
-    let Ok(ws) = web_sys::WebSocket::new(&url) else {
-        reconnect();
-        return;
-    };
-    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
-
-    // Text messages are the bench's status; only the binary gateway stream matters here
-    let on_message =
-        Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |e: web_sys::MessageEvent| {
-            let Ok(buf) = e.data().dyn_into::<js_sys::ArrayBuffer>() else {
-                return;
-            };
-            let msg = js_sys::Uint8Array::new(&buf).to_vec();
-            let Some((&bus, packet)) = msg.split_first() else {
-                return;
-            };
-            let now = now_ms();
-            let mut sides = sides.borrow_mut();
-            decode_cannelloni(packet, |id, ext, data| sides.ingest(bus, id, ext, data, now));
-        });
-    ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
-    on_message.forget();
-
-    let on_close = Closure::once_into_js(reconnect);
-    ws.set_onclose(Some(on_close.unchecked_ref()));
 }
 
 /// Follows the bench's settings, which it writes to localStorage.
@@ -147,6 +106,17 @@ fn save_setting(key: &str, value: &str) {
 
 thread_local! {
     static UI: RefCell<Option<slint::Weak<Display>>> = const { RefCell::new(None) };
+    static SIDES: Rc<RefCell<Sides>> = Rc::default();
+}
+
+/// A cannelloni packet from gateway bus `bus`, from the page.
+#[wasm_bindgen]
+pub fn push_packet(bus: u8, packet: &[u8]) {
+    let now = now_ms();
+    SIDES.with(|sides| {
+        let mut sides = sides.borrow_mut();
+        decode_cannelloni(packet, |id, ext, data| sides.ingest(bus, id, ext, data, now));
+    });
 }
 
 /// The device's A, B or C button (0–2), from the bench.
@@ -271,13 +241,12 @@ pub fn start(canvas: HtmlCanvasElement) -> Result<(), JsValue> {
         .dyn_into::<CanvasRenderingContext2d>()?;
 
     let ui = Display::new().map_err(|e| err(&e))?;
-    let sides = Rc::new(RefCell::new(Sides::default()));
+    let sides = SIDES.with(Rc::clone);
     let settings = Rc::new(Settings::default());
     let watcher = watch_settings(&ui, settings.clone());
     ui.on_theme_selected(|theme| save_setting("vcu.theme", theme_name(theme)));
     ui.on_input_selected(|input| save_setting("vcu.input", input_name(input)));
-    let driver = drive(&ui, sides.clone(), settings, now_ms, wall);
-    connect(sides);
+    let driver = drive(&ui, sides, settings, now_ms, wall);
     ui.show().map_err(|e| err(&e))?;
     listen_for_pointer(&canvas, window.clone())?;
     UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));

@@ -6,48 +6,23 @@ import type { WireFrame } from '../shared/can'
 import {
   BUSES,
   BUS_IFACE,
-  SHORE_INLETS,
-  SIM_SPEEDS,
   type BusName,
   type BusStatus,
   type ClientMsg,
   type GatewaySource,
   type ServerMsg,
   type ServerStatus,
-  type SimParams,
   type SourceKind,
 } from '../shared/bus'
-import type { Bank } from '../shared/gateway'
-import { DAYLIGHTS } from '../shared/sun'
-import { VESSEL } from '../shared/vessel'
 import { Gateway } from './gateway'
 import { RouterSource, UdpOut } from './router'
-import { BatterySim } from './sim'
+import type { BatterySim } from './sim'
+import { allocationOf, applySimMsg, makeSims, packetFrames } from './simBench'
 import { CandumpSource, ReplaySource, type Source } from './sources'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const LOG_DIRS = [path.join(root, 'logs'), path.resolve(root, '..')]
 const PORT = Number(process.env.BUS_PORT ?? 5190)
-
-const BASE: SimParams = {
-  skyPct: [75, 75, 85, 85],
-  propulsionA: 0,
-  houseA: 0,
-  heaterA: 0,
-  inverterA: 0,
-  mppts: [],
-  tempC: 24,
-  capacityAh: VESSEL.capacityAh,
-  bms: true,
-  mppt: true,
-  charger: true,
-  shore: false,
-}
-
-const INITIAL: Record<BusName, { params: SimParams; soc: number }> = {
-  port: { params: { ...BASE, propulsionA: 70, houseA: 3, mppts: [0, 1] }, soc: 64 },
-  stbd: { params: { ...BASE, propulsionA: 65, houseA: 15, mppts: [2, 3] }, soc: 71 },
-}
 
 function listLogs() {
   return LOG_DIRS.filter(existsSync).flatMap((dir) =>
@@ -58,16 +33,18 @@ function listLogs() {
 }
 
 const gateway = new Gateway()
+const sims = makeSims()
 
 class Bus {
   source: SourceKind = 'sim'
   external: Source | null = null
-  sim: BatterySim
   fps = 0
   private count = 0
 
-  constructor(readonly name: BusName) {
-    this.sim = new BatterySim(name, INITIAL[name].params, INITIAL[name].soc)
+  constructor(
+    readonly name: BusName,
+    readonly sim: BatterySim,
+  ) {
     this.sim.run((f) => {
       if (this.source === 'sim') this.push(f)
     })
@@ -94,7 +71,7 @@ class Bus {
   }
 }
 
-const buses = Object.fromEntries(BUSES.map((b) => [b, new Bus(b)])) as Record<BusName, Bus>
+const buses = Object.fromEntries(BUSES.map((b) => [b, new Bus(b, sims[b])])) as Record<BusName, Bus>
 
 function useSpec(bus: Bus, spec: string) {
   const [kind, arg] = spec.split(/:(.*)/s)
@@ -136,7 +113,7 @@ function broadcast(msg: ServerMsg) {
 // A bus's cannelloni packet to the browsers, as a binary message: the bus
 // number (its UDP port − 20000), then the packet
 function forward(bus: number, packet: Uint8Array) {
-  counts.set(bus, (counts.get(bus) ?? 0) + ((packet[3] << 8) | packet[4]))
+  counts.set(bus, (counts.get(bus) ?? 0) + packetFrames(packet))
   const msg = new Uint8Array(1 + packet.length)
   msg[0] = bus
   msg.set(packet, 1)
@@ -151,43 +128,18 @@ setInterval(() => {
 const statusMsg = (): ServerStatus => ({
   type: 'status',
   buses: BUSES.map((b) => buses[b].status()),
-  gateway: { source: gatewaySource, fps, router: router.from, udpOut: udpOut?.address ?? null },
+  gateway: { source: gatewaySource, fps, router: router.from, udpOut: udpOut?.address ?? null, local: false },
   logs: listLogs(),
   speed: buses.port.sim.speed,
   inlet: buses.port.sim.inlet,
 })
 
-// Which side each MPPT is on, from the sims (the gateway's own frame)
-const allocation = (): Bank[] =>
-  [0, 1, 2, 3].map((i) => BUSES.find((b) => buses[b].sim.params.mppts.includes(i)) ?? 'none')
-
 function handle(msg: ClientMsg) {
   if (msg.type === 'gateway') return useGateway(msg.source)
-  if (msg.type === 'allocation') {
-    BUSES.forEach((b) => buses[b].sim.patch({ mppts: msg.sides.flatMap((s, i) => (s === b ? [i] : [])) }))
-    gateway.allocation(allocation())
-    return
-  }
-  if (msg.type === 'sky') {
-    if (msg.pct.length === 4) BUSES.forEach((b) => buses[b].sim.patch({ skyPct: msg.pct.map((p) => Math.min(100, Math.max(0, Number(p) || 0))) }))
-    return
-  }
-  if (msg.type === 'daylight') {
-    if (DAYLIGHTS.includes(msg.daylight)) BUSES.forEach((b) => (buses[b].sim.daylight = msg.daylight))
-    return
-  }
-  if (msg.type === 'inlet') {
-    if (SHORE_INLETS.includes(msg.inlet)) BUSES.forEach((b) => (buses[b].sim.inlet = msg.inlet))
-    return
-  }
-  if (msg.type === 'speed') {
-    if (SIM_SPEEDS.includes(msg.speed)) BUSES.forEach((b) => (buses[b].sim.speed = msg.speed))
-    return
-  }
+  if (applySimMsg(sims, gateway, msg) || (msg.type !== 'tx' && msg.type !== 'source')) return
   const bus = buses[msg.bus]
   if (!bus) return
-  if (msg.type === 'sim') bus.sim.patch(msg.patch)
-  else if (msg.type === 'tx') msg.frames.forEach(bus.push)
+  if (msg.type === 'tx') msg.frames.forEach(bus.push)
   else if (msg.source === 'replay') {
     if (!listLogs().includes(msg.file)) return
     const file = path.join(root, msg.file)
@@ -217,7 +169,7 @@ setInterval(() => {
   }
 }, 20)
 
-setInterval(() => gateway.allocation(allocation()), 1000)
+setInterval(() => gateway.allocation(allocationOf(sims)), 1000)
 
 setInterval(() => broadcast(statusMsg()), 250)
 

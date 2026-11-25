@@ -37,7 +37,7 @@ The mapping lives in `ui/shared/gateway.ts` (`GATEWAY_BUSES`).
 
 ## Bench
 
-The bus server stands in for the router: it puts each simulated side's frames on its gateway bus and sends cannelloni packets over the `/bus` WebSocket as binary messages (bus number, then the packet). Both displays (React, and Slint in the browser) and the bench's frame logs read these. `pnpm bus --gateway=router` listens to the real router instead, and `pnpm bus --udp` broadcasts the simulation as the router would (see `ui/README.md`).
+The bus server stands in for the router: it puts each simulated side's frames on its gateway bus and sends cannelloni packets over the `/bus` WebSocket as binary messages (bus number, then the packet). The page reads them once (`ui/src/bus.ts`) and hands them to both displays (React, and Slint in the browser) and the bench's frame logs. Built for a static host, the page makes the same packets itself. `pnpm bus --gateway=router` listens to the real router instead, and `pnpm bus --udp` broadcasts the simulation as the router would (see `ui/README.md`).
 
 ## Open questions
 

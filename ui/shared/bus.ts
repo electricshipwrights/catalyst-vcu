@@ -70,6 +70,7 @@ export type GatewayStatus = {
   fps: Record<number, number> // frames per second, per gateway bus
   router: string | null // the router's address, once heard
   udpOut: string | null // where simulated packets are also sent as UDP
+  local: boolean // no bus server: the page runs the sims itself (src/localBus.ts)
 }
 
 export type ServerStatus = {
