@@ -5,9 +5,10 @@ canplayer: port on can0, starboard on can1.
 
 usage: cansim.py start [demo|parity] | stop | status
 
-  demo    (default) steps through the bench's presets, 30 s each with short
-          ramps between: cruise, full throttle, moored with sun, shore power,
-          night. Loops every 2.5 min; starboard runs two steps out of phase.
+  demo    (default) steps through the bench's presets, then night (no sun),
+          30 s each with short ramps between: cruise, full throttle, moored,
+          shore power, night. Loops every 2.5 min; starboard runs two steps
+          out of phase.
           Both sides are always online.
   parity  the test scenario (app/core/tests/fixtures/parity.json), which goes
           offline and quiet on purpose to exercise edge cases. Starboard runs
@@ -72,11 +73,11 @@ def elcon_status(amps, volts):
 def n2k_id(source):
     return (6 << 26) | (PGN_BATTERY_STATUS << 8) | source
 
-# Demo: (solar, propulsion, house, charger) per step, from the bench's presets
+# Demo: (solar, propulsion, house, charger) per step: the bench's presets, then night
 STEPS = [
     (55, 78, 10, 0),    # cruise: 7 knots, about 78 A propulsion per side
     (55, 320, 10, 0),   # full throttle
-    (60, 0, 10, 0),     # moored, sun
+    (60, 0, 10, 0),     # moored
     (0, 0, 10, 70),     # shore power (the charger tops out at 80 A)
     (0, 0, 10, 0),      # night
 ]

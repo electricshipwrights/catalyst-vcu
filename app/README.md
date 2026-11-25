@@ -56,7 +56,7 @@ To see live data without batteries, simulate the CAN buses:
 ../tools/cansim.py stop           # stop the replay, buses back to normal
 ```
 
-- **demo** (the default) steps through the bench's presets, 30 s each with 3 s ramps between: cruise, full throttle, moored with sun, shore power, night. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Each side's solar comes from its own two MPPTs. Both sides are always online. It's generated in `cansim.py` itself.
+- **demo** (the default) steps through the bench's presets and then night (no sun), 30 s each with 3 s ramps between: cruise, full throttle, moored, shore power, night. It loops every 2.5 minutes, with port on `can0` and starboard on `can1` two steps out of phase. Each side's solar comes from its own two MPPTs. Both sides are always online. It's generated in `cansim.py` itself.
 - **parity** replays the test scenario (`core/tests/fixtures/parity.json`, 220 s), with starboard 20 s behind, its frames mirrored onto starboard's MPPT, heater and inverter addresses. It goes offline and quiet on purpose, to exercise the edge cases: a BMS dropout, devices going stale, near-zero currents. It ends with full throttle from 180 s. To change it, edit `ui/scripts/parity.ts` and run `pnpm parity` in `ui/`.
 
 Either one puts the CAN controllers in loopback mode, so disconnect real CAN wiring first or run `stop` before connecting it. A reboot also ends the simulation, so run `start` again afterward.

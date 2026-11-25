@@ -20,8 +20,7 @@ const PRESETS: { label: string; skyPct: number[]; sides: Record<BusName, SimPatc
   },
   { label: 'Cruise', skyPct: sky(80), sides: both({ propulsionA: VESSEL.cruiseA, houseA: 10, ...NO_HEAT_OR_COOKING, shore: false }) },
   { label: 'Full throttle', skyPct: sky(80), sides: both({ propulsionA: 320, houseA: 10, ...NO_HEAT_OR_COOKING, shore: false }) },
-  { label: 'Moored, sun', skyPct: sky(90), sides: both({ propulsionA: 0, houseA: 10, ...NO_HEAT_OR_COOKING, shore: false }) },
-  { label: 'Night', skyPct: sky(0), sides: both({ propulsionA: 0, houseA: 10, ...NO_HEAT_OR_COOKING, shore: false }) },
+  { label: 'Moored', skyPct: sky(90), sides: both({ propulsionA: 0, houseA: 10, ...NO_HEAT_OR_COOKING, shore: false }) },
   { label: 'Shore power', skyPct: sky(0), sides: both({ propulsionA: 0, houseA: 10, ...NO_HEAT_OR_COOKING, shore: true }) },
 ]
 
